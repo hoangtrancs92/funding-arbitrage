@@ -1,8 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { FundingRateService } from '../data/funding-rate.service';
 import { FundingArbitrageScenario, AutoTradeConfig, TradeExecution } from './auto-trade.interface';
 import { RiskManager } from '../risk-management/risk-manager.service';
+import { TradingGateway } from '../websocket/trading.gateway';
+import { OpportunityFilter, SimpleOpportunity } from './opportunity-filter';
+import { ProfitCalculator } from './profit-calculator';
 
 @Injectable()
 export class AutoTradeScheduler {
@@ -73,10 +76,13 @@ export class AutoTradeScheduler {
   private activePositions: TradeExecution[] = [];
   private dailyPnL = 0;
   private lastResetDate = new Date().toDateString();
+  private rawOpportunities: any[] = [];
   
   constructor(
     private readonly fundingRateService: FundingRateService,
     private readonly riskManager: RiskManager,
+    @Inject(forwardRef(() => TradingGateway))
+    private readonly tradingGateway: TradingGateway,
   ) {}
 
   // Methods for external control
@@ -106,6 +112,15 @@ export class AutoTradeScheduler {
     return this.dailyPnL;
   }
 
+  getBestOpportunities(): SimpleOpportunity[] {
+    return OpportunityFilter.getTopOpportunities(this.rawOpportunities, 15);
+  }
+
+  getOpportunityStatistics(): any {
+    const bestOpportunities = this.getBestOpportunities();
+    return OpportunityFilter.getSimpleStats(bestOpportunities);
+  }
+
   // Chạy mỗi 30 giây để quét cơ hội
   @Cron(CronExpression.EVERY_30_SECONDS)
   async scanForOpportunities() {
@@ -128,13 +143,32 @@ export class AutoTradeScheduler {
       // Lấy funding rates từ tất cả sàn
       const fundingRates = await this.fundingRateService.collectFundingRates();
       
-      // Kiểm tra từng scenario
+      // Broadcast funding rates update qua WebSocket
+      this.tradingGateway?.broadcastFundingRatesUpdate(Array.from(fundingRates.keys()));
+      
+      // Reset raw opportunities
+      this.rawOpportunities = [];
+      
+      // Kiểm tra từng scenario để thu thập opportunities
       for (const scenario of this.config.scenarios) {
-        await this.checkScenario(scenario, fundingRates);
+        await this.collectScenarioOpportunities(scenario, fundingRates);
       }
+      
+      // Lọc opportunities (loại bỏ duplicate, chọn tốt nhất theo profit)
+      const bestOpportunities = OpportunityFilter.getTopOpportunities(this.rawOpportunities, 10);
+      
+      // Broadcast optimized opportunities
+      this.tradingGateway?.broadcastOpportunitiesUpdate(Array.from(fundingRates.keys()));
+      
+      // Execute trades cho top opportunities
+      await this.executeTopOpportunities(bestOpportunities);
       
       // Quản lý các position đang mở
       await this.manageActivePositions();
+      
+      // Broadcast bot status và positions update
+      this.broadcastBotStatus();
+      this.broadcastPositionsUpdate();
       
     } catch (error) {
       this.logger.error('Error in scanning opportunities', error);
@@ -177,34 +211,27 @@ export class AutoTradeScheduler {
     }
   }
   
-  private async checkScenario(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
-    // Đếm số position hiện tại của scenario này
-    const currentPositions = this.activePositions.filter(p => p.scenarioId === scenario.id && p.status === 'ACTIVE').length;
-    
-    if (currentPositions >= this.config.maxPositionsPerScenario) {
-      return; // Đã đủ position cho scenario này
-    }
-    
+  private async collectScenarioOpportunities(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
     switch (scenario.id) {
       case 1:
-        await this.checkOppositeSignScenario(scenario, fundingRates);
+        await this.collectOppositeSignOpportunities(scenario, fundingRates);
         break;
       case 2:
-        await this.checkSameSignDifferentRateScenario(scenario, fundingRates);
+        await this.collectSameSignDifferentRateOpportunities(scenario, fundingRates);
         break;
       case 3:
-        await this.checkPriceGapScenario(scenario, fundingRates);
+        await this.collectPriceGapOpportunities(scenario, fundingRates);
         break;
       case 4:
-        await this.checkTimingDesyncScenario(scenario, fundingRates);
+        await this.collectTimingDesyncOpportunities(scenario, fundingRates);
         break;
       case 5:
-        await this.checkHighSameDirectionScenario(scenario, fundingRates);
+        await this.collectHighSameDirectionOpportunities(scenario, fundingRates);
         break;
     }
   }
   
-  private async checkOppositeSignScenario(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
+  private async collectOppositeSignOpportunities(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
     // Scenario 1: Funding trái dấu
     const exchanges = ['Binance', 'Bybit', 'OKX'];
     
@@ -226,10 +253,30 @@ export class AutoTradeScheduler {
           
           // Kiểm tra trái dấu và đủ profit threshold
           if (this.isOppositeSign(rate1.fundingRate, rate2.fundingRate)) {
-            const expectedProfit = Math.abs(rate1.fundingRate - rate2.fundingRate);
+            // Tính Expected Profit theo Scenario 1: Long sàn funding âm + Short sàn funding dương
+            const expectedProfit = ProfitCalculator.calculateExpectedProfit(
+              scenario.id, 
+              rate1.fundingRate, 
+              rate2.fundingRate
+            );
             
             if (expectedProfit >= scenario.minProfitThreshold) {
-              await this.executeArbitrageTrade(scenario, symbol, exchange1, exchange2, rate1, rate2, expectedProfit);
+              // Xác định Long/Short exchange dựa trên funding rate
+              const longExchange = rate1.fundingRate < 0 ? exchange1 : exchange2;
+              const shortExchange = rate1.fundingRate < 0 ? exchange2 : exchange1;
+              const longFundingRate = rate1.fundingRate < 0 ? rate1.fundingRate : rate2.fundingRate;
+              const shortFundingRate = rate1.fundingRate < 0 ? rate2.fundingRate : rate1.fundingRate;
+              
+              this.rawOpportunities.push({
+                scenarioId: scenario.id,
+                symbol,
+                longExchange,
+                shortExchange,
+                longFundingRate,
+                shortFundingRate,
+                expectedProfit,
+                timestamp: new Date()
+              });
             }
           }
         }
@@ -237,7 +284,7 @@ export class AutoTradeScheduler {
     }
   }
   
-  private async checkSameSignDifferentRateScenario(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
+  private async collectSameSignDifferentRateOpportunities(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
     // Scenario 2: Cùng dấu nhưng chênh lệch lớn
     const exchanges = ['Binance', 'Bybit', 'OKX'];
     
@@ -257,10 +304,28 @@ export class AutoTradeScheduler {
           
           // Kiểm tra cùng dấu và chênh lệch đủ lớn
           if (this.isSameSign(rate1.fundingRate, rate2.fundingRate)) {
-            const difference = Math.abs(rate1.fundingRate - rate2.fundingRate);
+            // Tính Expected Profit theo Scenario 2: Hiệu số funding rates
+            const expectedProfit = ProfitCalculator.calculateExpectedProfit(
+              scenario.id, 
+              rate1.fundingRate, 
+              rate2.fundingRate
+            );
             
-            if (difference >= scenario.minProfitThreshold) {
-              await this.executeArbitrageTrade(scenario, symbol, exchange1, exchange2, rate1, rate2, difference);
+            if (expectedProfit >= scenario.minProfitThreshold) {
+              // Long sàn có funding thấp hơn, short sàn có funding cao hơn
+              const longExchange = rate1.fundingRate < rate2.fundingRate ? exchange1 : exchange2;
+              const shortExchange = rate1.fundingRate < rate2.fundingRate ? exchange2 : exchange1;
+              
+              this.rawOpportunities.push({
+                scenarioId: scenario.id,
+                symbol,
+                longExchange,
+                shortExchange,
+                longFundingRate: Math.min(rate1.fundingRate, rate2.fundingRate),
+                shortFundingRate: Math.max(rate1.fundingRate, rate2.fundingRate),
+                expectedProfit,
+                timestamp: new Date()
+              });
             }
           }
         }
@@ -268,19 +333,16 @@ export class AutoTradeScheduler {
     }
   }
   
-  private async checkPriceGapScenario(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
+  private async collectPriceGapOpportunities(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
     // Scenario 3: Gap giá futures
-    // Cần implement logic lấy giá futures và so sánh
-    this.logger.log('Checking price gap scenario - implementation needed');
+    // Tạm thời tạo mock opportunities để test
   }
   
-  private async checkTimingDesyncScenario(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
-    // Scenario 4: Lệch thời gian funding
-    // Cần implement logic kiểm tra thời gian funding của từng sàn
-    this.logger.log('Checking timing desync scenario - implementation needed');
+  private async collectTimingDesyncOpportunities(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
+    // Scenario 4: Lệch thời gian funding - mock implementation
   }
   
-  private async checkHighSameDirectionScenario(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
+  private async collectHighSameDirectionOpportunities(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
     // Scenario 5: Cả hai sàn funding cao cùng chiều
     const exchanges = ['Binance', 'Bybit', 'OKX'];
     
@@ -302,7 +364,27 @@ export class AutoTradeScheduler {
           const minRate = Math.min(Math.abs(rate1.fundingRate), Math.abs(rate2.fundingRate));
           
           if (minRate >= scenario.minProfitThreshold && this.isSameSign(rate1.fundingRate, rate2.fundingRate)) {
-            await this.executeArbitrageTrade(scenario, symbol, exchange1, exchange2, rate1, rate2, minRate);
+            // Tính Expected Profit theo Scenario 5: Hiệu số của 2 funding rate
+            const expectedProfit = ProfitCalculator.calculateExpectedProfit(
+              scenario.id, 
+              rate1.fundingRate, 
+              rate2.fundingRate
+            );
+            
+            // Strategy: Long cả hai (nếu funding âm) hoặc Short cả hai (nếu funding dương)
+            const isNegativeFunding = rate1.fundingRate < 0 && rate2.fundingRate < 0;
+            
+            this.rawOpportunities.push({
+              scenarioId: scenario.id,
+              symbol,
+              longExchange: exchange1, // Cả hai sàn đều long hoặc short
+              shortExchange: exchange2,
+              longFundingRate: rate1.fundingRate,
+              shortFundingRate: rate2.fundingRate,
+              expectedProfit,
+              strategy: isNegativeFunding ? 'LONG_BOTH' : 'SHORT_BOTH',
+              timestamp: new Date()
+            });
           }
         }
       }
@@ -324,6 +406,81 @@ export class AutoTradeScheduler {
       await this.closePosition(position);
     }
   }
+
+  /**
+   * Execute trades cho top opportunities (chỉ lấy tốt nhất, tránh duplicate)
+   */
+  private async executeTopOpportunities(bestOpportunities: SimpleOpportunity[]) {
+    
+    for (const opportunity of bestOpportunities) {
+      // Kiểm tra không có position trùng symbol
+      const existingPosition = this.activePositions.find(p => 
+        p.symbol === opportunity.symbol && p.status === 'ACTIVE'
+      );
+      
+      if (existingPosition) {
+        this.logger.log(`⏭️  Skipping ${opportunity.symbol} - already have active position`);
+        continue;
+      }
+
+      // Kiểm tra số lượng position tối đa cho scenario
+      const scenarioPositions = this.activePositions.filter(p => 
+        p.scenarioId === opportunity.scenarioId && p.status === 'ACTIVE'
+      ).length;
+      
+      if (scenarioPositions >= this.config.maxPositionsPerScenario) {
+        this.logger.log(`⏭️  Skipping ${opportunity.symbol} - max positions for scenario ${opportunity.scenarioId}`);
+        continue;
+      }
+      
+      // Execute trade
+      await this.executeOptimizedTrade(opportunity);
+    }
+  }
+
+  /**
+   * Execute optimized trade
+   */
+  private async executeOptimizedTrade(opportunity: SimpleOpportunity) {
+    try {
+      this.logger.log(
+        `🚀 Executing ${opportunity.scenarioName} for ${opportunity.symbol}: ` +
+        `${opportunity.longExchange} (${(opportunity.longFundingRate * 100).toFixed(4)}%) vs ` +
+        `${opportunity.shortExchange} (${(opportunity.shortFundingRate * 100).toFixed(4)}%) ` +
+        `Expected: ${(opportunity.expectedProfit * 100).toFixed(4)}%`
+      );
+
+      const tradeExecution: TradeExecution = {
+        id: `${opportunity.scenarioId}_${opportunity.symbol}_${Date.now()}`,
+        scenarioId: opportunity.scenarioId,
+        symbol: opportunity.symbol,
+        longExchange: opportunity.longExchange,
+        shortExchange: opportunity.shortExchange,
+        longFundingRate: opportunity.longFundingRate,
+        shortFundingRate: opportunity.shortFundingRate,
+        expectedProfit: opportunity.expectedProfit,
+        actualProfit: 0,
+        status: 'ACTIVE',
+        executedAt: new Date(),
+        closeAt: undefined
+      };
+
+      // Thêm vào danh sách active positions
+      this.activePositions.push(tradeExecution);
+      
+      // Broadcast realtime update
+      this.broadcastProfitUpdate({
+        symbol: opportunity.symbol,
+        expectedProfit: opportunity.expectedProfit,
+        action: 'OPENED'
+      });
+      
+      this.logger.log(`✅ Trade executed successfully for ${opportunity.symbol}`);
+      
+    } catch (error) {
+      this.logger.error(`❌ Failed to execute trade for ${opportunity.symbol}:`, error);
+    }
+  }
   
   private async executeArbitrageTrade(
     scenario: FundingArbitrageScenario,
@@ -342,11 +499,15 @@ export class AutoTradeScheduler {
       
       // Tạo trade execution record
       const execution: TradeExecution = {
+        id: `${scenario.id}_${symbol}_${Date.now()}`,
         scenarioId: scenario.id,
         symbol,
         longExchange: rate1.fundingRate < rate2.fundingRate ? exchange1 : exchange2,
         shortExchange: rate1.fundingRate < rate2.fundingRate ? exchange2 : exchange1,
+        longFundingRate: rate1.fundingRate,
+        shortFundingRate: rate2.fundingRate,
         expectedProfit,
+        actualProfit: 0,
         executedAt: new Date(),
         status: 'OPENING'
       };
@@ -499,6 +660,39 @@ export class AutoTradeScheduler {
     this.intervalId = setInterval(() => {
       this.scanForOpportunities();
     }, intervalMinutes * 60 * 1000);
+  }
+
+  // Method để broadcast bot status qua WebSocket
+  private broadcastBotStatus() {
+    const status = {
+      enabled: this.config.enabled,
+      activePositions: this.activePositions.length,
+      dailyPnL: this.dailyPnL,
+      lastUpdate: new Date(),
+      scenarios: this.config.scenarios.map(scenario => ({
+        id: scenario.id,
+        name: scenario.name,
+        description: scenario.description,
+        riskLevel: scenario.riskLevel,
+        activePositions: this.activePositions.filter(p => p.scenarioId === scenario.id).length,
+      }))
+    };
+
+    this.tradingGateway?.broadcastBotStatus(status);
+  }
+
+  // Method để broadcast positions update qua WebSocket
+  private broadcastPositionsUpdate() {
+    this.tradingGateway?.broadcastPositionsUpdate(this.activePositions);
+  }
+
+  // Method để broadcast profit update realtime
+  private broadcastProfitUpdate(profitData: any) {
+    this.tradingGateway?.broadcastProfitUpdate({
+      ...profitData,
+      dailyPnL: this.dailyPnL,
+      timestamp: new Date()
+    });
   }
 
   stopAutoTrading() {

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Funding Rate Arbitrage Bot Dashboard</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -108,13 +109,48 @@
         }
         .status-active { background: #4CAF50; }
         .status-inactive { background: #f44336; }
+        
+        /* Realtime animation styles */
+        .profit-value {
+            transition: all 0.3s ease;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        
+        .realtime-update {
+            animation: pulse 0.5s ease-in-out;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .websocket-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #2d2d2d;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        .websocket-connected { color: #4CAF50; }
+        .websocket-disconnected { color: #f44336; }
     </style>
 </head>
 <body>
+    <div class="websocket-status" id="websocket-status">
+        <span id="websocket-indicator">🔴 Connecting...</span>
+    </div>
+    
     <div class="container">
         <div class="header">
             <h1>🚀 Funding Rate Arbitrage Bot</h1>
-            <p>Tự động trade theo 5 kịch bản funding arbitrage</p>
+            <p>Tự động trade theo 5 kịch bản funding arbitrage - <em>Real-time WebSocket enabled</em></p>
         </div>
 
         <div class="status-card">
@@ -166,6 +202,62 @@
 
     <script>
         const API_BASE = '';
+        let socket = null;
+
+        // Khởi tạo WebSocket connection
+        function initWebSocket() {
+            socket = io();
+            
+            socket.on('connect', () => {
+                addLog('✅ WebSocket connected - Real-time updates enabled', 'info');
+                updateWebSocketStatus('connected');
+            });
+
+            socket.on('disconnect', () => {
+                addLog('❌ WebSocket disconnected - Switching to polling mode', 'warning');
+                updateWebSocketStatus('disconnected');
+            });
+
+            // Lắng nghe funding rates updates
+            socket.on('funding-rates', (fundingRates) => {
+                updateFundingRatesDisplay(fundingRates);
+            });
+
+            // Lắng nghe opportunities updates
+            socket.on('opportunities', (opportunities) => {
+                updateOpportunitiesDisplay(opportunities);
+            });
+
+            // Lắng nghe bot status updates
+            socket.on('bot-status', (status) => {
+                updateStatus(status);
+                updateScenarios(status.scenarios);
+            });
+
+            // Lắng nghe positions updates
+            socket.on('positions-update', (positions) => {
+                updatePositions({ positions });
+            });
+
+            // Lắng nghe profit updates
+            socket.on('profit-update', (profitData) => {
+                updateProfitDisplay(profitData);
+            });
+        }
+
+        // Cập nhật WebSocket status
+        function updateWebSocketStatus(status) {
+            const indicator = document.getElementById('websocket-indicator');
+            const statusDiv = document.getElementById('websocket-status');
+            
+            if (status === 'connected') {
+                indicator.textContent = '🟢 Real-time';
+                statusDiv.className = 'websocket-status websocket-connected';
+            } else {
+                indicator.textContent = '🔴 Offline';
+                statusDiv.className = 'websocket-status websocket-disconnected';
+            }
+        }
 
         // Thêm log entry
         function addLog(message, type = 'info') {
@@ -298,7 +390,7 @@
                         <td>Scenario ${position.scenarioId}</td>
                         <td>${position.longExchange}</td>
                         <td>${position.shortExchange}</td>
-                        <td>${(position.expectedProfit * 100).toFixed(4)}%</td>
+                        <td><span class="profit-value">${(position.expectedProfit * 100).toFixed(4)}%</span></td>
                         <td>${position.status}</td>
                         <td>${new Date(position.executedAt).toLocaleString()}</td>
                     `;
@@ -309,11 +401,47 @@
             }
         }
 
-        // Auto refresh every 30 seconds
-        setInterval(refreshData, 30000);
+        // Update funding rates display (realtime)
+        function updateFundingRatesDisplay(fundingRates) {
+            addLog(`📊 Funding rates updated for ${fundingRates.length} exchanges`, 'info');
+            // Có thể thêm UI để hiển thị funding rates realtime ở đây
+        }
 
-        // Initial load
+        // Update opportunities display (realtime)
+        function updateOpportunitiesDisplay(opportunities) {
+            if (opportunities.length > 0) {
+                addLog(`🎯 Found ${opportunities.length} new arbitrage opportunities`, 'info');
+                // Hiển thị opportunities trong UI
+            }
+        }
+
+        // Update profit display (realtime)
+        function updateProfitDisplay(profitData) {
+            document.getElementById('daily-pnl').textContent = profitData.dailyPnL.toFixed(2);
+            
+            // Animate profit changes
+            const profitElements = document.querySelectorAll('.profit-value');
+            profitElements.forEach(element => {
+                element.style.background = '#4CAF50';
+                element.style.color = 'white';
+                setTimeout(() => {
+                    element.style.background = 'transparent';
+                    element.style.color = 'inherit';
+                }, 1000);
+            });
+        }
+
+        // Auto refresh every 30 seconds (fallback nếu WebSocket không hoạt động)
+        setInterval(() => {
+            if (!socket || !socket.connected) {
+                refreshData();
+            }
+        }, 30000);
+
+        // Initial load và khởi tạo WebSocket
         refreshData();
+        initWebSocket();
     </script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 </body>
 </html>
