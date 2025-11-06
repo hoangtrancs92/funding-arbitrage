@@ -42,13 +42,32 @@ export class OkxConnector extends ExchangeConnector {
     try {
       if (symbols && symbols.length > 0) {
         const promises = symbols.map(async (symbol) => {
-          const response = await fetch(`${this.baseUrl}/api/v5/public/funding-rate?instId=${symbol}`);
+          // OKX uses different symbol format (e.g., BTC-USDT-SWAP)
+          const okxSymbol = this.convertToOkxSymbol(symbol);
+          const url = `${this.baseUrl}/api/v5/public/funding-rate?instId=${okxSymbol}`;
+          
+          this.logger.debug(`Fetching OKX funding rate for ${symbol} -> ${okxSymbol}: ${url}`);
+          
+          const response = await fetch(url);
+          const contentType = response.headers.get?.('content-type') || '';
+          
+          if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            this.logger.warn(`Non-JSON response from OKX funding-rate for ${symbol}: ${url} -> ${text.slice(0, 300)}`);
+            return null;
+          }
+          
           const data = await response.json();
           
-          if (data.data.length > 0) {
+          if (data.code !== '0') {
+            this.logger.warn(`OKX API error for ${symbol}: ${data.msg}`);
+            return null;
+          }
+          
+          if (data.data && data.data.length > 0) {
             const rate = data.data[0];
             return {
-              symbol: rate.instId,
+              symbol: symbol, // Return original symbol format
               fundingRate: parseFloat(rate.fundingRate),
               fundingTime: parseInt(rate.fundingTime),
               nextFundingTime: parseInt(rate.nextFundingTime),
@@ -84,6 +103,20 @@ export class OkxConnector extends ExchangeConnector {
       this.logger.error('Failed to fetch funding rates', error);
       throw error;
     }
+  }
+
+  /**
+   * Convert standard symbol format to OKX format
+   * BTCUSDT -> BTC-USDT-SWAP
+   */
+  private convertToOkxSymbol(symbol: string): string {
+    // Remove USDT suffix and add OKX format
+    if (symbol.endsWith('USDT')) {
+      const base = symbol.slice(0, -4); // Remove 'USDT'
+      return `${base}-USDT-SWAP`;
+    }
+    // Fallback: assume it's already in correct format
+    return symbol;
   }
   
   async getOrderBook(symbol: string, limit = 400): Promise<OrderBook> {

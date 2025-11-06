@@ -1,9 +1,13 @@
 import { Controller, Get, Post, Query } from '@nestjs/common';
 import { AutoTradeScheduler } from '../scheduler/auto-trade.scheduler';
+import { FundingRateService } from '../data/funding-rate.service';
 
 @Controller('auto-trade')
 export class AutoTradeController {
-  constructor(private readonly autoTradeScheduler: AutoTradeScheduler) {}
+  constructor(
+    private readonly autoTradeScheduler: AutoTradeScheduler,
+    private readonly fundingRateService: FundingRateService,
+  ) {}
 
   @Get('status')
   getStatus() {
@@ -47,22 +51,38 @@ export class AutoTradeController {
   }
 
   @Get('positions')
-  getPositions() {
+  async getPositions() {
     // Trả về optimized opportunities thay vì raw positions
     const bestOpportunities = this.autoTradeScheduler.getBestOpportunities();
     
+    // Lấy thông tin funding time cho từng symbol/exchange
+    const fundingData = await this.fundingRateService.collectFundingRates();
+    
     return {
-      positions: bestOpportunities.map(opportunity => ({
-        symbol: opportunity.symbol,
-        scenarioId: opportunity.scenarioId,
-        longExchange: opportunity.longExchange,
-        shortExchange: opportunity.shortExchange,
-        expectedProfit: opportunity.expectedProfit,
-        status: 'ACTIVE',
-        executedAt: opportunity.timestamp
-      })),
+      positions: bestOpportunities.map(opportunity => {
+        // Tìm funding time cho long và short exchange
+        const longRates = fundingData.get(opportunity.longExchange) || [];
+        const shortRates = fundingData.get(opportunity.shortExchange) || [];
+        
+        const longRate = longRates.find(r => r.symbol === opportunity.symbol);
+        const shortRate = shortRates.find(r => r.symbol === opportunity.symbol);
+        
+        return {
+          symbol: opportunity.symbol,
+          scenarioId: opportunity.scenarioId,
+          longExchange: opportunity.longExchange,
+          shortExchange: opportunity.shortExchange,
+          expectedProfit: opportunity.expectedProfit,
+          longFundingTime: longRate?.nextFundingTime ? new Date(longRate.nextFundingTime) : null,
+          shortFundingTime: shortRate?.nextFundingTime ? new Date(shortRate.nextFundingTime) : null,
+          longFundingRate: longRate?.fundingRate || 0,
+          shortFundingRate: shortRate?.fundingRate || 0,
+          timestamp: opportunity.timestamp
+        };
+      }),
       total: bestOpportunities.length,
       lastUpdated: new Date(),
+      fundingRates: Object.fromEntries(fundingData), // Include full funding data
       statistics: this.autoTradeScheduler.getOpportunityStatistics()
     };
   }
