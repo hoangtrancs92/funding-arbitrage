@@ -140,6 +140,40 @@
         
         .websocket-connected { color: #4CAF50; }
         .websocket-disconnected { color: #f44336; }
+        
+        .countdown-container {
+            text-align: center;
+        }
+        
+        .countdown-time {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 14px;
+            color: #4CAF50;
+        }
+        
+        .countdown-time.countdown-warning {
+            color: #ff9800;
+        }
+        
+        .countdown-time.countdown-critical {
+            color: #f44336;
+            animation: blink 1s infinite;
+        }
+        
+        .countdown-time.countdown-expired {
+            color: #666;
+        }
+        
+        .funding-rate {
+            color: #999;
+            font-size: 11px;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
     </style>
 </head>
 <body>
@@ -182,8 +216,8 @@
                         <th>Long Exchange</th>
                         <th>Short Exchange</th>
                         <th>Expected Profit</th>
-                        <th>Status</th>
-                        <th>Executed At</th>
+                        <th>Long Funding Time</th>
+                        <th>Short Funding Time</th>
                     </tr>
                 </thead>
                 <tbody id="positions-tbody">
@@ -326,6 +360,11 @@
                 const positionsResponse = await fetch('/auto-trade/positions');
                 const positions = await positionsResponse.json();
                 
+                // Update global funding data từ positions response
+                if (positions.fundingRates) {
+                    window.currentFundingData = positions.fundingRates;
+                }
+                
                 updatePositions(positions);
                 
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
@@ -383,16 +422,29 @@
             tbody.innerHTML = '';
             
             if (positionsData.positions && positionsData.positions.length > 0) {
-                positionsData.positions.forEach(position => {
+                positionsData.positions.forEach((position, index) => {
                     const row = document.createElement('tr');
+                    
+                    // Format funding times với countdown
+                    const longFundingTime = formatFundingTimeCountdown(
+                        position.longFundingTime, 
+                        position.longFundingRate, 
+                        `long-${index}`
+                    );
+                    const shortFundingTime = formatFundingTimeCountdown(
+                        position.shortFundingTime, 
+                        position.shortFundingRate, 
+                        `short-${index}`
+                    );
+                    
                     row.innerHTML = `
                         <td>${position.symbol}</td>
                         <td>Scenario ${position.scenarioId}</td>
                         <td>${position.longExchange}</td>
                         <td>${position.shortExchange}</td>
                         <td><span class="profit-value">${(position.expectedProfit * 100).toFixed(4)}%</span></td>
-                        <td>${position.status}</td>
-                        <td>${new Date(position.executedAt).toLocaleString()}</td>
+                        <td>${longFundingTime}</td>
+                        <td>${shortFundingTime}</td>
                     `;
                     tbody.appendChild(row);
                 });
@@ -401,10 +453,83 @@
             }
         }
 
+        // Format funding time countdown for display
+        function formatFundingTimeCountdown(fundingTime, fundingRate, containerId) {
+            if (!fundingTime) {
+                return 'N/A';
+            }
+            
+            const nextFunding = new Date(fundingTime);
+            const ratePercent = (fundingRate * 100).toFixed(4);
+            const rateSign = fundingRate >= 0 ? '+' : '';
+            
+            // Tạo container với countdown và rate
+            const countdownId = `countdown-${containerId}-${Date.now()}`;
+            
+            // Tính countdown ban đầu
+            const now = new Date();
+            const diff = nextFunding.getTime() - now.getTime();
+            
+            let initialCountdown = 'Past due';
+            if (diff > 0) {
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                initialCountdown = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            // Lưu thông tin để update sau
+            if (!window.fundingCountdowns) {
+                window.fundingCountdowns = new Map();
+            }
+            window.fundingCountdowns.set(countdownId, { fundingTime: nextFunding.getTime(), fundingRate });
+            
+            return `
+                <div class="countdown-container">
+                    <span class="countdown-time" id="${countdownId}">${initialCountdown}</span>
+                    <br><small class="funding-rate">(${rateSign}${ratePercent}%)</small>
+                </div>
+            `;
+        }
+
+        // Get next funding time for exchange (fallback)
+        function getExchangeNextFundingTime(exchange) {
+            const now = new Date();
+            const currentUTCHour = now.getUTCHours();
+            
+            let nextHour;
+            if (currentUTCHour < 8) {
+                nextHour = 8;
+            } else if (currentUTCHour < 16) {
+                nextHour = 16;
+            } else {
+                nextHour = 24; // 00:00 next day
+            }
+            
+            const nextFunding = new Date(now);
+            nextFunding.setUTCHours(nextHour % 24, 0, 0, 0);
+            
+            if (nextHour === 24) {
+                nextFunding.setUTCDate(nextFunding.getUTCDate() + 1);
+            }
+            
+            const diff = nextFunding.getTime() - now.getTime();
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        }
+
         // Update funding rates display (realtime)
         function updateFundingRatesDisplay(fundingRates) {
+            // Lưu funding data vào global object để dùng cho funding time display
+            window.currentFundingData = {};
+            
+            fundingRates.forEach(([exchange, rates]) => {
+                window.currentFundingData[exchange] = rates;
+            });
+            
             addLog(`📊 Funding rates updated for ${fundingRates.length} exchanges`, 'info');
-            // Có thể thêm UI để hiển thị funding rates realtime ở đây
         }
 
         // Update opportunities display (realtime)
@@ -431,12 +556,48 @@
             });
         }
 
+        // Update countdown every second
+        function updateCountdowns() {
+            if (!window.fundingCountdowns) return;
+            
+            const now = Date.now();
+            
+            window.fundingCountdowns.forEach((data, countdownId) => {
+                const element = document.getElementById(countdownId);
+                if (!element) return;
+                
+                const diff = data.fundingTime - now;
+                
+                if (diff > 0) {
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                    
+                    let countdownClass = 'countdown-time';
+                    if (diff <= 5 * 60 * 1000) { // 5 minutes
+                        countdownClass += ' countdown-critical';
+                    } else if (diff <= 15 * 60 * 1000) { // 15 minutes
+                        countdownClass += ' countdown-warning';
+                    }
+                    
+                    element.className = countdownClass;
+                    element.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                } else {
+                    element.textContent = 'Past due';
+                    element.className = 'countdown-time countdown-expired';
+                }
+            });
+        }
+
         // Auto refresh every 30 seconds (fallback nếu WebSocket không hoạt động)
         setInterval(() => {
             if (!socket || !socket.connected) {
                 refreshData();
             }
         }, 30000);
+        
+        // Update countdowns every second
+        setInterval(updateCountdowns, 1000);
 
         // Initial load và khởi tạo WebSocket
         refreshData();

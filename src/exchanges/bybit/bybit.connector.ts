@@ -41,10 +41,27 @@ export class BybitConnector extends ExchangeConnector {
       // Bybit requires individual calls for each symbol for funding rate
       if (symbols && symbols.length > 0) {
         const promises = symbols.map(async (symbol) => {
-          const response = await fetch(`${this.baseUrl}/v5/market/funding/history?category=linear&symbol=${symbol}&limit=1`);
+          const url = `${this.baseUrl}/v5/market/funding/history?category=linear&symbol=${symbol}&limit=1`;
+          
+          this.logger.debug(`Fetching Bybit funding rate for ${symbol}: ${url}`);
+          
+          const response = await fetch(url);
+          const contentType = response.headers.get?.('content-type') || '';
+          
+          if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            this.logger.warn(`Non-JSON response from Bybit funding history for ${symbol}: ${url} -> ${text.slice(0, 300)}`);
+            return null;
+          }
+          
           const data = await response.json();
           
-          if (data.result.list.length > 0) {
+          if (data.retCode !== 0) {
+            this.logger.warn(`Bybit API error for ${symbol}: ${data.retMsg}`);
+            return null;
+          }
+          
+          if (data.result && data.result.list && data.result.list.length > 0) {
             const rate = data.result.list[0];
             return {
               symbol: rate.symbol,
