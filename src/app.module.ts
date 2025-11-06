@@ -9,6 +9,7 @@ import { StrategiesModule } from './strategies/strategies.module';
 import { RiskManagementModule } from './risk-management/risk-management.module';
 import { ApiModule } from './api/api.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { WebSocketModule } from './websocket/websocket.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     RiskManagementModule,
     ApiModule,
     SchedulerModule,
+    WebSocketModule,
   ],
   controllers: [AppController],
   providers: [AppService],

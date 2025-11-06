@@ -48,8 +48,22 @@ export class AutoTradeController {
 
   @Get('positions')
   getPositions() {
+    // Trả về optimized opportunities thay vì raw positions
+    const bestOpportunities = this.autoTradeScheduler.getBestOpportunities();
+    
     return {
-      positions: this.autoTradeScheduler.getActivePositions()
+      positions: bestOpportunities.map(opportunity => ({
+        symbol: opportunity.symbol,
+        scenarioId: opportunity.scenarioId,
+        longExchange: opportunity.longExchange,
+        shortExchange: opportunity.shortExchange,
+        expectedProfit: opportunity.expectedProfit,
+        status: 'ACTIVE',
+        executedAt: opportunity.timestamp
+      })),
+      total: bestOpportunities.length,
+      lastUpdated: new Date(),
+      statistics: this.autoTradeScheduler.getOpportunityStatistics()
     };
   }
 

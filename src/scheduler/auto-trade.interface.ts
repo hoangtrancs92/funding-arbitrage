@@ -21,10 +21,13 @@ export interface AutoTradeConfig {
 }
 
 export interface TradeExecution {
+  id: string;
   scenarioId: number;
   symbol: string;
   longExchange: string;
   shortExchange: string;
+  longFundingRate: number;
+  shortFundingRate: number;
   longPosition?: {
     size: number;
     entryPrice: number;
@@ -36,6 +39,8 @@ export interface TradeExecution {
     orderId: string;
   };
   expectedProfit: number;
+  actualProfit: number;
   executedAt: Date;
+  closeAt?: Date;
   status: 'OPENING' | 'ACTIVE' | 'CLOSING' | 'CLOSED' | 'FAILED';
 }
