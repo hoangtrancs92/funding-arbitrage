@@ -344,51 +344,6 @@ export class AutoTradeScheduler {
   
   private async collectHighSameDirectionOpportunities(scenario: FundingArbitrageScenario, fundingRates: Map<string, any[]>) {
     // Scenario 5: Cả hai sàn funding cao cùng chiều
-    const exchanges = ['Binance', 'Bybit', 'OKX'];
-    
-    for (const exchange1 of exchanges) {
-      for (const exchange2 of exchanges) {
-        if (exchange1 === exchange2) continue;
-        
-        const rates1 = fundingRates.get(exchange1) || [];
-        const rates2 = fundingRates.get(exchange2) || [];
-        const commonSymbols = this.findCommonSymbols(rates1, rates2);
-        
-        for (const symbol of commonSymbols) {
-          const rate1 = rates1.find(r => r.symbol === symbol);
-          const rate2 = rates2.find(r => r.symbol === symbol);
-          
-          if (!rate1 || !rate2) continue;
-          
-          // Kiểm tra cả hai đều cao và cùng dấu
-          const minRate = Math.min(Math.abs(rate1.fundingRate), Math.abs(rate2.fundingRate));
-          
-          if (minRate >= scenario.minProfitThreshold && this.isSameSign(rate1.fundingRate, rate2.fundingRate)) {
-            // Tính Expected Profit theo Scenario 5: Hiệu số của 2 funding rate
-            const expectedProfit = ProfitCalculator.calculateExpectedProfit(
-              scenario.id, 
-              rate1.fundingRate, 
-              rate2.fundingRate
-            );
-            
-            // Strategy: Long cả hai (nếu funding âm) hoặc Short cả hai (nếu funding dương)
-            const isNegativeFunding = rate1.fundingRate < 0 && rate2.fundingRate < 0;
-            
-            this.rawOpportunities.push({
-              scenarioId: scenario.id,
-              symbol,
-              longExchange: exchange1, // Cả hai sàn đều long hoặc short
-              shortExchange: exchange2,
-              longFundingRate: rate1.fundingRate,
-              shortFundingRate: rate2.fundingRate,
-              expectedProfit,
-              strategy: isNegativeFunding ? 'LONG_BOTH' : 'SHORT_BOTH',
-              timestamp: new Date()
-            });
-          }
-        }
-      }
-    }
   }
   
   private async checkTimeSensitiveScenarios() {
