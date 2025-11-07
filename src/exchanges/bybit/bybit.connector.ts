@@ -67,7 +67,7 @@ export class BybitConnector extends ExchangeConnector {
               symbol: rate.symbol,
               fundingRate: parseFloat(rate.fundingRate),
               fundingTime: parseInt(rate.fundingRateTimestamp),
-              nextFundingTime: parseInt(rate.fundingRateTimestamp) + 8 * 60 * 60 * 1000, // 8 hours later
+              nextFundingTime: Number(rate.fundingRateTimestamp), // 8 hours later
             };
           }
           return null;
@@ -79,12 +79,11 @@ export class BybitConnector extends ExchangeConnector {
         // Get all tickers and extract funding rates
         const response = await fetch(`${this.baseUrl}/v5/market/tickers?category=linear`);
         const data = await response.json();
-        
         return data.result.list.map((ticker: any) => ({
           symbol: ticker.symbol,
           fundingRate: parseFloat(ticker.fundingRate || '0'),
-          fundingTime: Date.now(),
-          nextFundingTime: Date.now() + 8 * 60 * 60 * 1000,
+          fundingTime: ticker.nextFundingTime,
+          nextFundingTime: Number(ticker.nextFundingTime), // Approximate next funding time
         }));
       }
     } catch (error) {

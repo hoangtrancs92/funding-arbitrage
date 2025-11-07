@@ -32,7 +32,6 @@ export class OpportunityFilter {
       // Sắp xếp theo expectedProfit giảm dần
       const sorted = symOpps.sort((a, b) => b.expectedProfit - a.expectedProfit);
       const best = sorted[0];
-      
       // Tạo simple opportunity
       bestOpportunities.push({
         symbol: best.symbol,

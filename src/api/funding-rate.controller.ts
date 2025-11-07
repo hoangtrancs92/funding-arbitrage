@@ -10,7 +10,6 @@ export class FundingRateController {
     const symbolArray = symbols ? symbols.split(',') : undefined;
     const result =  await this.fundingRateService.collectFundingRates(symbolArray);
     const entries = [...result.entries()];
-    console.log(entries);
     return entries;
   }
 

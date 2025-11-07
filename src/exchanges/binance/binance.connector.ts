@@ -48,7 +48,7 @@ export class BinanceConnector extends ExchangeConnector {
       const data = await response.json();
       
       const rates = Array.isArray(data) ? data : [data];
-      
+
       return rates.map((rate: any) => ({
         symbol: rate.symbol,
         fundingRate: parseFloat(rate.lastFundingRate),
