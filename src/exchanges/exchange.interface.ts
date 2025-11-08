@@ -67,12 +67,13 @@ export abstract class ExchangeConnector {
   abstract getPositions(): Promise<Position[]>;
   
   // Trading Methods
-  abstract placeMarketOrderByUSDT(
+  abstract placeOrder(
     symbol: string,
     side: 'BUY' | 'SELL',
     initialMargin: number, // Số tiền margin ban đầu (USDT)
-    leverage?: number // Default sẽ lấy từ account settings
-  );
+    leverage?: number, // Default sẽ lấy từ account settings
+    marginType?: 'cross' | 'isolated' // Loại margin
+  )
   
   abstract cancelOrder(symbol: string, orderId: string): Promise<boolean>;
   abstract getOrder(symbol: string, orderId: string);

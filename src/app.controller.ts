@@ -78,27 +78,30 @@ export class AppController {
     }
   }
 
-  @Post('test/binance/order/market')
-  async testBinanceMarketOrder(@Body() body: { 
-    symbol: string; 
-    side: 'BUY' | 'SELL'; 
-    initialMargin: number; // USDT margin amount
-    leverage?: number 
-  }) {
-    try {
-      const orderResult = await this.binanceConnector.placeMarketOrderByUSDT();
-      return {
-        success: true,
-        data: orderResult,
-        message: `Placed ${body.side} market order on Binance`
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
+@Post('test/binance/order/market')
+async testBinanceMarketOrder(@Body() body: { 
+  symbol: string; 
+  side: 'BUY' | 'SELL'; 
+  initialMargin: number; // USDT margin amount
+  leverage?: number;
+  marginMode?: 'isolated' | 'cross';
+}) {
+  try {
+    const orderResult = await this.binanceConnector.placeOrder(
+      body.symbol,
+      body.side,
+      body.initialMargin,
+      body.leverage,
+      body.marginMode
+    );
+    return { orderResult };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
   }
+}
 
   // === BYBIT TEST ENDPOINTS ===
 

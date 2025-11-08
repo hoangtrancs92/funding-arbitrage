@@ -3,8 +3,8 @@ import { ExchangeConnector, FuturesContract, FundingRate, OrderBook, Balance, Po
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExchangeAuthUtils } from '../utils/auth.utils';
-import {version, binance} from 'ccxt';
-
+import { binance } from 'ccxt';
+import { calculateCoinAmountFromMargin } from 'src/common/helper';
 
 @Injectable()
 export class BinanceConnector extends ExchangeConnector {
@@ -160,21 +160,31 @@ export class BinanceConnector extends ExchangeConnector {
     }
   }
 
-  async placeMarketOrderByUSDT(
-
+  async placeOrder(
+    symbol: string,
+    side: 'BUY' | 'SELL',
+    initialMargin: number,
+    leverage?: number,
+    marginMode: 'cross' | 'isolated' = 'isolated'
   ) {
-    const res = await fetch('https://api.binance.com/api/v3/time');
-    return res;
     const exchange = new binance({
       apiKey: this.apiKey,
       secret: this.secretKey,
-      useServerTime: async () => Date.now(),
+      options: {
+        defaultType: 'future',
+      },
     });
+    // Đồng bộ server time trước khi thực hiện
+    await exchange.loadTimeDifference();
 
-    const ticker = await exchange.fetchTicker('BTC/USDT');
+    await exchange.setLeverage(leverage, symbol);
+    await exchange.setMarginMode(marginMode, symbol);
+    const ticker = await exchange.fetchTicker(symbol);
 
+    const quantity = await calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
+    const result = await exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
 
-    return ticker
+    return result;
   }
 
   async cancelOrder(symbol: string, orderId: string): Promise<boolean> {
@@ -264,4 +274,5 @@ export class BinanceConnector extends ExchangeConnector {
       throw new Error(`Get order failed: ${error.response?.data?.msg || error.message}`);
     }
   }
+
 }
