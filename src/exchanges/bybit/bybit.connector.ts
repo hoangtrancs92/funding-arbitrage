@@ -3,7 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExchangeAuthUtils } from '../utils/auth.utils';
 import axios from 'axios';
-import crypto from "crypto";
+import { bybit } from 'ccxt';
+import { calculateCoinAmountFromMargin, formatPair } from 'src/common/helper';
 
 @Injectable()
 export class BybitConnector extends ExchangeConnector {
@@ -232,78 +233,36 @@ export class BybitConnector extends ExchangeConnector {
     }
   }
 
-  async getOrder(symbol: string, orderId: string) {
-    // Validate credentials
-    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
-    if (!validation.isValid) {
-      throw new Error(`API credentials invalid: ${validation.errors.join(', ')}`);
-    }
-  }
+  async placeOrder(
+    symbol: string,
+    side: 'BUY' | 'SELL',
+    initialMargin: number,
+    leverage?: number,
+    marginMode: 'cross' | 'isolated' = 'isolated'
+  ) {
+    const exchange = new bybit({
+      apiKey: this.apiKey,
+      secret: this.secretKey,
+      options: {
+        defaultType: 'future',
+      },
+    });
+    symbol = `${formatPair(symbol)}:USDT`;
+    await exchange.loadTimeDifference();
 
-  async placeMarketOrderByUSDT() {
-    // Validate credentials
-    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
-    if (!validation.isValid) {
-      throw new Error(`API credentials invalid: ${validation.errors.join(', ')}`);
-    }
+    await exchange.fetchLeverage(symbol);
+    await exchange.setMarginMode(marginMode, symbol);
+    const ticker = await exchange.fetchTicker(symbol);
+    const quantity = await calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
+    const result = await exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
 
-    try {
-      // Implementation for placing a market order using USDT
-    } catch (error) {
-      this.logger.error('❌ Failed to place market order:', error);
-      throw error;
-    }
+    return result;
   }
 
   async cancelOrder(symbol: string, orderId: string): Promise<boolean> {
-    // Validate credentials
-    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
-    if (!validation.isValid) {
-      throw new Error(`API credentials invalid: ${validation.errors.join(', ')}`);
-    }
+    return true;
+  }
 
-    try {
-      const cancelParams = {
-        category: 'linear',
-        symbol: symbol.toUpperCase(),
-        orderId: orderId
-      };
-
-      this.logger.log(`🗑️ Canceling order ${orderId} for ${symbol} on Bybit...`);
-
-      // Create signed request for Bybit
-      const { query, signature, headers } = ExchangeAuthUtils.createBybitSignedQuery(this.apiKey, this.secretKey, cancelParams);
-
-      const response = await axios.post(
-        `${this.baseUrl}/v5/order/cancel`,
-        cancelParams,
-        { headers }
-      );
-
-      const responseData = response.data;
-      
-      // Check if Bybit returned an error
-      if (responseData.retCode !== 0) {
-        if (responseData.retCode === 110001) {
-          this.logger.warn(`Order ${orderId} was not found or already canceled`);
-          return false;
-        }
-        throw new Error(`Bybit Error ${responseData.retCode}: ${responseData.retMsg}`);
-      }
-
-      this.logger.log(`✅ Order ${orderId} canceled successfully on Bybit`);
-      return true;
-
-    } catch (error) {
-      this.logger.error(`❌ Failed to cancel order ${orderId} on Bybit:`, error.response?.data || error.message);
-      
-      // Handle specific error cases
-      if (error.response?.data?.retCode === 110001) {
-        this.logger.warn(`Order ${orderId} was not found or already canceled`);
-        return false;
-      }
-      
-      throw new Error(`Cancel order failed: ${error.response?.data?.retMsg || error.message}`);
-    }
+  async getOrder(symbol: string, orderId: string) {
   }
 }

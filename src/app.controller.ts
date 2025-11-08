@@ -13,7 +13,7 @@ export class AppController {
     private readonly fundingRateService: FundingRateService,
     private readonly binanceConnector: BinanceConnector,
     private readonly bybitConnector: BybitConnector,
-  ) {}
+  ) { }
 
   @Get()
   getHello(): string {
@@ -34,7 +34,7 @@ export class AppController {
     try {
       // Quick health check by fetching a small amount of data
       const fundingRates = await this.fundingRateService.collectFundingRates(['BTCUSDT']);
-      
+
       return {
         status: 'healthy',
         timestamp: new Date(),
@@ -78,30 +78,30 @@ export class AppController {
     }
   }
 
-@Post('test/binance/order/market')
-async testBinanceMarketOrder(@Body() body: { 
-  symbol: string; 
-  side: 'BUY' | 'SELL'; 
-  initialMargin: number; // USDT margin amount
-  leverage?: number;
-  marginMode?: 'isolated' | 'cross';
-}) {
-  try {
-    const orderResult = await this.binanceConnector.placeOrder(
-      body.symbol,
-      body.side,
-      body.initialMargin,
-      body.leverage,
-      body.marginMode
-    );
-    return { orderResult };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
+  @Post('test/binance/order/')
+  async testBinanceOrder(@Body() body: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    initialMargin: number; // USDT margin amount
+    leverage?: number;
+    marginMode?: 'isolated' | 'cross';
+  }) {
+    try {
+      const orderResult = await this.binanceConnector.placeOrder(
+        body.symbol,
+        body.side,
+        body.initialMargin,
+        body.leverage,
+        body.marginMode
+      );
+      return { orderResult };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   }
-}
 
   // === BYBIT TEST ENDPOINTS ===
 
@@ -117,7 +117,32 @@ async testBinanceMarketOrder(@Body() body: {
     } catch (error) {
       return {
         success: false,
-        error: error.message  
+        error: error.message
+      };
+    }
+  }
+
+  @Post('test/bybit/order/')
+  async testBybitOrder(@Body() body: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    initialMargin: number; // USDT margin amount
+    leverage?: number;
+    marginMode?: 'isolated' | 'cross';
+  }) {
+    try {
+      const orderResult = await this.bybitConnector.placeOrder(
+        body.symbol,
+        body.side,
+        body.initialMargin,
+        body.leverage,
+        body.marginMode
+      );
+      return { orderResult };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
       };
     }
   }

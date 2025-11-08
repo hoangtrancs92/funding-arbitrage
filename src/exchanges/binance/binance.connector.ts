@@ -188,91 +188,10 @@ export class BinanceConnector extends ExchangeConnector {
   }
 
   async cancelOrder(symbol: string, orderId: string): Promise<boolean> {
-    // Validate credentials
-    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
-    if (!validation.isValid) {
-      throw new Error(`API credentials invalid: ${validation.errors.join(', ')}`);
-    }
-
-    try {
-      const cancelParams = {
-        symbol: symbol.toUpperCase(),
-        orderId: orderId
-      };
-
-      this.logger.log(`🗑️ Canceling order ${orderId} for ${symbol}...`);
-
-      // Create signed query for cancel request
-      const { fullQuery } = ExchangeAuthUtils.createBinanceSignedQuery(this.secretKey, cancelParams);
-      const headers = ExchangeAuthUtils.createAuthHeaders(this.apiKey, undefined, undefined, 'binance');
-
-      const response = await axios.delete(
-        `https://fapi.binance.com/fapi/v1/order?${fullQuery}`,
-        { headers }
-      );
-
-      const cancelData = response.data;
-
-      this.logger.log(`✅ Order ${orderId} canceled successfully. Status: ${cancelData.status}`);
-      return true;
-
-    } catch (error) {
-      this.logger.error(`❌ Failed to cancel order ${orderId}:`, error.response?.data || error.message);
-
-      // Handle specific error cases
-      if (error.response?.status === 400 && error.response?.data?.code === -2011) {
-        this.logger.warn(`Order ${orderId} was not found or already canceled`);
-        return false;
-      }
-
-      throw new Error(`Cancel order failed: ${error.response?.data?.msg || error.message}`);
-    }
+    return true;
   }
 
-  async getOrder(symbol: string, orderId: string): Promise<OrderResult> {
-    // Validate credentials
-    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
-    if (!validation.isValid) {
-      throw new Error(`API credentials invalid: ${validation.errors.join(', ')}`);
-    }
-
-    try {
-      const queryParams = {
-        symbol: symbol.toUpperCase(),
-        orderId: orderId
-      };
-
-      // Create signed query for order query request
-      const { fullQuery } = ExchangeAuthUtils.createBinanceSignedQuery(this.secretKey, queryParams);
-      const headers = ExchangeAuthUtils.createAuthHeaders(this.apiKey, undefined, undefined, 'binance');
-
-      const response = await axios.get(
-        `https://fapi.binance.com/fapi/v1/order?${fullQuery}`,
-        { headers }
-      );
-
-      const orderData = response.data;
-
-      this.logger.log(`📋 Retrieved order ${orderId}: Status ${orderData.status}, Executed: ${orderData.executedQty}/${orderData.origQty}`);
-
-      // Map to OrderResult interface
-      const result: OrderResult = {
-        orderId: orderData.orderId.toString(),
-        symbol: orderData.symbol,
-        side: orderData.side as 'BUY' | 'SELL',
-        type: orderData.type as 'MARKET' | 'LIMIT',
-        quantity: parseFloat(orderData.origQty),
-        filled: parseFloat(orderData.executedQty || '0'),
-        avgPrice: orderData.avgPrice ? parseFloat(orderData.avgPrice) : undefined,
-        timestamp: orderData.time || orderData.updateTime || Date.now()
-      };
-
-      return result;
-
-    } catch (error) {
-      this.logger.error(`❌ Failed to get order ${orderId}:`, error.response?.data || error.message);
-      throw new Error(`Get order failed: ${error.response?.data?.msg || error.message}`);
-    }
+  async getOrder(symbol: string, orderId: string) {
   }
 
 }
