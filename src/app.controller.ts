@@ -1,12 +1,18 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import { Controller, Get, Res, Post, Body, Logger } from '@nestjs/common';
 import { AppService } from './app.service';
 import { FundingRateService } from './data/funding-rate.service';
+import { BinanceConnector } from './exchanges/binance/binance.connector';
+import { BybitConnector } from './exchanges/bybit/bybit.connector';
 
 @Controller()
 export class AppController {
+  private readonly logger = new Logger(AppController.name);
+
   constructor(
     private readonly appService: AppService,
     private readonly fundingRateService: FundingRateService,
+    private readonly binanceConnector: BinanceConnector,
+    private readonly bybitConnector: BybitConnector,
   ) {}
 
   @Get()
@@ -51,5 +57,65 @@ export class AppController {
   getDashboard(@Res() res) {
     const path = require('path');
     return res.sendFile(path.join(__dirname, '..', 'src', 'public', 'dashboard.html'));
+  }
+
+  // ===== TEST ENDPOINTS =====
+
+  @Get('test/binance/balance')
+  async getBinanceBalance() {
+    try {
+      const balances = await this.binanceConnector.getBalances();
+      return {
+        success: true,
+        data: balances,
+        message: `Retrieved ${balances.length} balance entries from Binance`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Post('test/binance/order/market')
+  async testBinanceMarketOrder(@Body() body: { 
+    symbol: string; 
+    side: 'BUY' | 'SELL'; 
+    initialMargin: number; // USDT margin amount
+    leverage?: number 
+  }) {
+    try {
+      const orderResult = await this.binanceConnector.placeMarketOrderByUSDT();
+      return {
+        success: true,
+        data: orderResult,
+        message: `Placed ${body.side} market order on Binance`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  // === BYBIT TEST ENDPOINTS ===
+
+  @Get('test/bybit/balance')
+  async getBybitBalance() {
+    try {
+      const balances = await this.bybitConnector.getBalances();
+      return {
+        success: true,
+        data: balances,
+        message: `Retrieved ${balances.length} balance entries from Bybit`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message  
+      };
+    }
   }
 }

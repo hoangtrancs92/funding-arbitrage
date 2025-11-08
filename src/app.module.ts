@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ConfigModule } from './config/config.module';
+import { ConfigModule } from '@nestjs/config';
 import { ExchangesModule } from './exchanges/exchanges.module';
 import { DataModule } from './data/data.module';
 import { ArbitrageModule } from './arbitrage/arbitrage.module';
@@ -13,7 +13,10 @@ import { WebSocketModule } from './websocket/websocket.module';
 
 @Module({
   imports: [
-    ConfigModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
     ExchangesModule,
     DataModule,
     ArbitrageModule,

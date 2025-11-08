@@ -22,7 +22,7 @@ export class FundingRateController {
   async getTopOpportunities(@Query('limit') limit?: number) {
     return await this.fundingRateService.getTopOpportunities(limit ? parseInt(limit.toString()) : 10);
   }
-
+  
   @Post('monitoring/start')
   async startMonitoring(@Query('interval') interval?: number) {
     await this.fundingRateService.startMonitoring(interval ? parseInt(interval.toString()) : 5);

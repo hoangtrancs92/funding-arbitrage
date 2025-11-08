@@ -42,18 +42,17 @@ export interface Position {
 }
 
 export interface OrderResult {
-  orderId: string;
-  symbol: string;
-  side: 'BUY' | 'SELL';
-  type: 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'STOP_LIMIT';
-  quantity: number;
-  price?: number;
-  status: 'NEW' | 'PARTIALLY_FILLED' | 'FILLED' | 'CANCELED' | 'REJECTED';
-  executedQty: number;
-  executedPrice?: number;
-  timestamp: number;
-}
+  orderId: string;       // Mã lệnh
+  symbol: string;        // BTC/USDT
+  side: any;  // Hướng vào lệnh
+  type: any;
 
+  quantity: number;      // Số lượng đặt
+  filled: number;        // Khớp được bao nhiêu
+
+  avgPrice?: number;     // Giá khớp trung bình (market order)
+  timestamp: number;     // Thời điểm tạo lệnh (ms)
+}
 export abstract class ExchangeConnector {
   abstract exchangeName: string;
   
@@ -68,20 +67,13 @@ export abstract class ExchangeConnector {
   abstract getPositions(): Promise<Position[]>;
   
   // Trading Methods
-  abstract placeOrder(
+  abstract placeMarketOrderByUSDT(
     symbol: string,
     side: 'BUY' | 'SELL',
-    type: 'MARKET' | 'LIMIT',
-    quantity: number,
-    price?: number,
-    timeInForce?: 'GTC' | 'IOC' | 'FOK'
-  ): Promise<OrderResult>;
+    initialMargin: number, // Số tiền margin ban đầu (USDT)
+    leverage?: number // Default sẽ lấy từ account settings
+  );
   
   abstract cancelOrder(symbol: string, orderId: string): Promise<boolean>;
-  abstract getOrder(symbol: string, orderId: string): Promise<OrderResult>;
-  
-  // WebSocket Methods
-  abstract subscribeToFundingRates(symbols: string[], callback: (data: FundingRate) => void): void;
-  abstract subscribeToOrderBook(symbols: string[], callback: (data: OrderBook) => void): void;
-  abstract subscribeToUserData(callback: (data: any) => void): void;
+  abstract getOrder(symbol: string, orderId: string);
 }
