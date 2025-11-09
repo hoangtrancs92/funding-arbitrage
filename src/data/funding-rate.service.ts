@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BinanceConnector } from '../exchanges/binance/binance.connector';
 import { BybitConnector } from '../exchanges/bybit/bybit.connector';
-import { OkxConnector } from '../exchanges/okx/okx.connector';
 import { ArbitrageDetector } from '../arbitrage/arbitrage-detector.service';
 import { FundingArbitrageStrategyService } from '../strategies/funding-arbitrage-strategy.service';
 import { RiskManager } from '../risk-management/risk-manager.service';
@@ -14,7 +13,6 @@ export class FundingRateService {
   constructor(
     private readonly binanceConnector: BinanceConnector,
     private readonly bybitConnector: BybitConnector,
-    private readonly okxConnector: OkxConnector,
     private readonly arbitrageDetector: ArbitrageDetector,
     private readonly strategyService: FundingArbitrageStrategyService,
     private readonly riskManager: RiskManager,
@@ -44,15 +42,6 @@ export class FundingRateService {
       this.logger.error('Failed to collect Bybit funding rates', error);
     }
     
-    try {
-      // Collect from OKX
-      const okxRates = await this.okxConnector.getFundingRates(symbols);
-      fundingRatesMap.set('OKX', okxRates);
-      this.logger.log(`Collected ${okxRates.length} funding rates from OKX`);
-    } catch (error) {
-      this.logger.error('Failed to collect OKX funding rates', error);
-    }
-
     return fundingRatesMap;
   }
   

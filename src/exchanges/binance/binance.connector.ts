@@ -1,28 +1,37 @@
+import axios from 'axios';
 import { ExchangeConnector, FuturesContract, FundingRate, OrderBook, Balance, Position, OrderResult } from '../exchange.interface';
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ExchangeAuthUtils } from '../utils/auth.utils';
+import { binance } from 'ccxt';
+import { calculateCoinAmountFromMargin } from 'src/common/helper';
 
 @Injectable()
 export class BinanceConnector extends ExchangeConnector {
   private readonly logger = new Logger(BinanceConnector.name);
   exchangeName = 'Binance';
-  
+
   private baseUrl = 'https://fapi.binance.com';
   private apiKey: string;
   private secretKey: string;
-  
-  constructor() {
+
+  constructor(private readonly configService: ConfigService) {
     super();
-    // Initialize with environment variables or config
-    this.apiKey = process.env.BINANCE_API_KEY || '';
-    this.secretKey = process.env.BINANCE_SECRET_KEY || '';
+    // Initialize with ConfigService để đảm bảo .env được load
+    this.apiKey = this.configService.get<string>('BINANCE_API_KEY') || '';
+    this.secretKey = this.configService.get<string>('BINANCE_SECRET_KEY') || '';
+
+    // Debug logging
+    this.logger.log(`🔑 Binance API Key: ${this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'Not configured'}`);
+    this.logger.log(`🔐 Binance Secret: ${this.secretKey ? '***configured***' : 'Not configured'}`);
   }
-  
+
   async getFuturesContracts(): Promise<FuturesContract[]> {
     try {
       // Implementation for Binance futures contracts
       const response = await fetch(`${this.baseUrl}/fapi/v1/exchangeInfo`);
       const data = await response.json();
-      
+
       return data.symbols.map((symbol: any) => ({
         symbol: symbol.symbol,
         baseAsset: symbol.baseAsset,
@@ -37,18 +46,18 @@ export class BinanceConnector extends ExchangeConnector {
       throw error;
     }
   }
-  
+
   async getFundingRates(symbols?: string[]): Promise<FundingRate[]> {
     try {
-      const url = symbols 
+      const url = symbols
         ? `${this.baseUrl}/fapi/v1/premiumIndex?symbol=${symbols.join(',')}`
         : `${this.baseUrl}/fapi/v1/premiumIndex`;
-        
+
       const response = await fetch(url);
       const data = await response.json();
-      
+
       const rates = Array.isArray(data) ? data : [data];
-      
+
       return rates.map((rate: any) => ({
         symbol: rate.symbol,
         fundingRate: parseFloat(rate.lastFundingRate),
@@ -61,12 +70,12 @@ export class BinanceConnector extends ExchangeConnector {
       throw error;
     }
   }
-  
+
   async getOrderBook(symbol: string, limit = 500): Promise<OrderBook> {
     try {
       const response = await fetch(`${this.baseUrl}/fapi/v1/depth?symbol=${symbol}&limit=${limit}`);
       const data = await response.json();
-      
+
       return {
         symbol,
         bids: data.bids.map(([price, qty]: [string, string]) => [parseFloat(price), parseFloat(qty)]),
@@ -78,7 +87,7 @@ export class BinanceConnector extends ExchangeConnector {
       throw error;
     }
   }
-  
+
   async getMarkPrice(symbol: string): Promise<number> {
     try {
       const response = await fetch(`${this.baseUrl}/fapi/v1/premiumIndex?symbol=${symbol}`);
@@ -89,51 +98,100 @@ export class BinanceConnector extends ExchangeConnector {
       throw error;
     }
   }
-  
+
   async getBalances(): Promise<Balance[]> {
-    // Implementation requires authentication
-    throw new Error('Method not implemented');
+    // ✅ Validate credentials using utility
+    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
+    if (!validation.isValid) {
+      throw new Error(`API credentials invalid: ${validation.errors.join(', ')}`);
+    }
+
+    try {
+      // Sử dụng ExchangeAuthUtils để tạo signed query
+      const { fullQuery } = ExchangeAuthUtils.createBinanceSignedQuery(this.secretKey);
+      const headers = ExchangeAuthUtils.createAuthHeaders(this.apiKey, undefined, undefined, 'binance');
+
+      const res = await axios.get(
+        `https://fapi.binance.com/fapi/v2/balance?${fullQuery}`,
+        { headers }
+      );
+
+      const balances = res.data;
+
+      return balances.map((item: any) => ({
+        asset: item.asset,
+        free: parseFloat(item.availableBalance),  // Available để trade
+        locked: parseFloat(item.balance) - parseFloat(item.availableBalance), // Đang dùng
+        total: parseFloat(item.balance),          // Tổng tài sản futures
+      }));
+
+    } catch (error) {
+      this.logger.error('❌ Error fetching Binance Futures balances:', error.response?.data || error.message);
+      return [];
+    }
   }
-  
+
   async getPositions(): Promise<Position[]> {
-    // Implementation requires authentication
-    throw new Error('Method not implemented');
+    try {
+      // Sử dụng ExchangeAuthUtils để tạo signed query
+      const { fullQuery } = ExchangeAuthUtils.createBinanceSignedQuery(this.secretKey);
+      const headers = ExchangeAuthUtils.createAuthHeaders(this.apiKey, undefined, undefined, 'binance');
+
+      const response = await axios.get(`https://fapi.binance.com/fapi/v2/positionRisk?${fullQuery}`, {
+        headers
+      });
+
+      const openPositions = response.data
+        .filter((p: any) => parseFloat(p.positionAmt) !== 0)
+        .map((p: any) => ({
+          symbol: p.symbol,
+          positionAmt: parseFloat(p.positionAmt),
+          entryPrice: parseFloat(p.entryPrice),
+          unrealizedProfit: parseFloat(p.unRealizedProfit),
+          leverage: parseInt(p.leverage),
+          marginType: p.marginType,
+          isolatedMargin: parseFloat(p.isolatedMargin),
+          positionSide: p.positionSide,
+        }));
+      return openPositions;
+    } catch (error) {
+      this.logger.error('Failed to fetch positions', error);
+      throw error;
+    }
   }
-  
+
   async placeOrder(
     symbol: string,
     side: 'BUY' | 'SELL',
-    type: 'MARKET' | 'LIMIT',
-    quantity: number,
-    price?: number,
-    timeInForce?: 'GTC' | 'IOC' | 'FOK'
-  ): Promise<OrderResult> {
-    // Implementation requires authentication
-    throw new Error('Method not implemented');
+    initialMargin: number,
+    leverage?: number,
+    marginMode: 'cross' | 'isolated' = 'isolated'
+  ) {
+    const exchange = new binance({
+      apiKey: this.apiKey,
+      secret: this.secretKey,
+      options: {
+        defaultType: 'future',
+      },
+    });
+    // Đồng bộ server time trước khi thực hiện
+    await exchange.loadTimeDifference();
+
+    await exchange.setLeverage(leverage, symbol);
+    await exchange.setMarginMode(marginMode, symbol);
+    const ticker = await exchange.fetchTicker(symbol);
+
+    const quantity = await calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
+    const result = await exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
+
+    return result;
   }
-  
+
   async cancelOrder(symbol: string, orderId: string): Promise<boolean> {
-    // Implementation requires authentication
-    throw new Error('Method not implemented');
+    return true;
   }
-  
-  async getOrder(symbol: string, orderId: string): Promise<OrderResult> {
-    // Implementation requires authentication
-    throw new Error('Method not implemented');
+
+  async getOrder(symbol: string, orderId: string) {
   }
-  
-  subscribeToFundingRates(symbols: string[], callback: (data: FundingRate) => void): void {
-    // WebSocket implementation
-    throw new Error('Method not implemented');
-  }
-  
-  subscribeToOrderBook(symbols: string[], callback: (data: OrderBook) => void): void {
-    // WebSocket implementation
-    throw new Error('Method not implemented');
-  }
-  
-  subscribeToUserData(callback: (data: any) => void): void {
-    // WebSocket implementation
-    throw new Error('Method not implemented');
-  }
+
 }

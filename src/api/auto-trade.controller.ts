@@ -63,18 +63,18 @@ export class AutoTradeController {
         // Tìm funding time cho long và short exchange
         const longRates = fundingData.get(opportunity.longExchange) || [];
         const shortRates = fundingData.get(opportunity.shortExchange) || [];
-        
+
         const longRate = longRates.find(r => r.symbol === opportunity.symbol);
         const shortRate = shortRates.find(r => r.symbol === opportunity.symbol);
-        
+        console.log('longRate.nextFundingTime:', longRate?.nextFundingTime);
         return {
           symbol: opportunity.symbol,
           scenarioId: opportunity.scenarioId,
           longExchange: opportunity.longExchange,
           shortExchange: opportunity.shortExchange,
           expectedProfit: opportunity.expectedProfit,
-          longFundingTime: longRate?.nextFundingTime ? new Date(longRate.nextFundingTime) : null,
-          shortFundingTime: shortRate?.nextFundingTime ? new Date(shortRate.nextFundingTime) : null,
+          longFundingTime: longRate?.nextFundingTime ? new Date(Number(longRate.nextFundingTime)) : null,
+          shortFundingTime: shortRate?.nextFundingTime ? new Date(Number(shortRate.nextFundingTime)) : null,
           longFundingRate: longRate?.fundingRate || 0,
           shortFundingRate: shortRate?.fundingRate || 0,
           timestamp: opportunity.timestamp
