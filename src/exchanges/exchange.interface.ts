@@ -53,6 +53,25 @@ export interface OrderResult {
   avgPrice?: number;     // Giá khớp trung bình (market order)
   timestamp: number;     // Thời điểm tạo lệnh (ms)
 }
+
+export interface PositionInfo {
+  symbol: string
+  /** Số lượng hợp đồng, dương = long, âm = short */
+  positionAmt: number
+  /** Giá vào lệnh trung bình */
+  entryPrice: number
+  /** Lãi/lỗ chưa thực hiện (USDT) */
+  unrealizedPnl: number
+  /** Khối lượng danh nghĩa (notional value) */
+  volume: number
+  /** Loại margin: ISOLATED hoặc CROSSED */
+  marginType: 'ISOLATED' | 'CROSSED' | string
+  /** Giá trị ký quỹ ban đầu (USDT) */
+  USDValue: number,
+  /** Hướng lệnh: long hoặc short */
+  side: 'long' | 'short' | string
+}
+
 export abstract class ExchangeConnector {
   abstract exchangeName: string;
   
@@ -64,7 +83,9 @@ export abstract class ExchangeConnector {
   
   // Account Methods
   abstract getBalances(): Promise<Balance[]>;
-  abstract getPositions(): Promise<Position[]>;
+  abstract closePosition(symbol: string, orderId: string): Promise<boolean>;
+  abstract getPosition(symbol: string): Promise<PositionInfo[]>;
+  abstract getFundingHistory(symbol: string, limit?: number): Promise<any[]>;
   
   // Trading Methods
   abstract placeOrder(
@@ -74,7 +95,4 @@ export abstract class ExchangeConnector {
     leverage?: number, // Default sẽ lấy từ account settings
     marginType?: 'cross' | 'isolated' // Loại margin
   )
-  
-  abstract cancelOrder(symbol: string, orderId: string): Promise<boolean>;
-  abstract getOrder(symbol: string, orderId: string);
 }

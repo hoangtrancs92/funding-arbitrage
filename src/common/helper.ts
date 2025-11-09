@@ -1,3 +1,11 @@
+export interface PositionInfo {
+  symbol: string
+  side: 'long' | 'short' | string
+  contracts?: number | string
+  size?: number | string // dùng cho sàn khác (vd: Bybit)
+  positionAmt?: number | string // cho Binance
+}
+
 /**
  * Tính số lượng coin (Amount) có thể mở vị thế Futures,
  * dựa trên số tiền USDT ký quỹ (Margin) và đòn bẩy.
@@ -69,3 +77,38 @@ export const formatPair = (pair: string): string => {
     console.warn(`Không thể tự động định dạng cặp: ${pair}`);
     return pair;
 };
+
+/**
+ * Tạo tham số để đóng lệnh hiện tại (market close)
+ * @param position Thông tin vị thế hiện tại
+ * @returns { side, amount, symbol }
+ */
+export function getCloseOrderParams(position: PositionInfo) {
+  if (!position || !position.symbol) {
+    throw new Error('Thiếu thông tin vị thế hoặc symbol không hợp lệ.')
+  }
+
+  // Chuẩn hoá hướng lệnh
+  const side = position.side?.toLowerCase()
+  if (!side || (side !== 'long' && side !== 'short')) {
+    throw new Error(`Giá trị side không hợp lệ: ${position.side}`)
+  }
+
+  // Xác định khối lượng (ưu tiên contracts > size > positionAmt)
+  const rawAmount =
+    Number(position.contracts ?? position.size ?? position.positionAmt ?? 0)
+
+  if (!rawAmount || isNaN(rawAmount)) {
+    throw new Error('Không có khối lượng hợp lệ để đóng lệnh.')
+  }
+
+  // Xác định hướng đóng lệnh
+  const closeSide = side === 'long' ? 'sell' : 'buy'
+
+  return {
+    symbol: position.symbol,
+    side: closeSide,
+    amount: Math.abs(rawAmount),
+    type: 'market', // mặc định đóng theo giá market
+  }
+}
