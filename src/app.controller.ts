@@ -103,6 +103,52 @@ export class AppController {
     }
   }
 
+  @Post('test/binance/cancel-order/')
+  async testBinanceCancelOrder(@Body() body: {
+    symbol: string;
+  }) {
+    try {
+      const result = await this.binanceConnector.closePosition(body.symbol);
+      return { result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Get('test/binance/position/')
+  async testBinanceGetPosition(@Body() body: {
+    symbol: string;
+  }) {
+    try {
+      const position = await this.binanceConnector.getPosition(body.symbol);
+      return { position };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Get('test/binance/funding-history/')
+  async testBinanceGetFundingHistory(@Body() body: {
+    symbol: string;
+    limit?: number;
+  }) {
+    try {
+      const history = await this.binanceConnector.getFundingHistory(body.symbol, body.limit);
+      return { history };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
   // === BYBIT TEST ENDPOINTS ===
 
   @Get('test/bybit/balance')
@@ -139,6 +185,21 @@ export class AppController {
         body.marginMode
       );
       return { orderResult };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Post('test/bybit/cancel-order/')
+  async testBybitCancelOrder(@Body() body: {
+    symbol: string;
+  }) {
+    try {
+      const result = await this.bybitConnector.closePosition(body.symbol);
+      return { result };
     } catch (error) {
       return {
         success: false,

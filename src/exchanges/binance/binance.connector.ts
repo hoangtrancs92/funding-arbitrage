@@ -1,10 +1,10 @@
 import axios from 'axios';
-import { ExchangeConnector, FuturesContract, FundingRate, OrderBook, Balance, Position, OrderResult } from '../exchange.interface';
+import { ExchangeConnector, FuturesContract, FundingRate, OrderBook, Balance, Position, OrderResult, PositionInfo } from '../exchange.interface';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExchangeAuthUtils } from '../utils/auth.utils';
 import { binance } from 'ccxt';
-import { calculateCoinAmountFromMargin } from 'src/common/helper';
+import { calculateCoinAmountFromMargin, formatPair, getCloseOrderParams } from 'src/common/helper';
 
 @Injectable()
 export class BinanceConnector extends ExchangeConnector {
@@ -14,13 +14,21 @@ export class BinanceConnector extends ExchangeConnector {
   private baseUrl = 'https://fapi.binance.com';
   private apiKey: string;
   private secretKey: string;
+  private exchange: binance;
 
   constructor(private readonly configService: ConfigService) {
     super();
     // Initialize with ConfigService để đảm bảo .env được load
     this.apiKey = this.configService.get<string>('BINANCE_API_KEY') || '';
     this.secretKey = this.configService.get<string>('BINANCE_SECRET_KEY') || '';
-
+    this.exchange = new binance({
+      apiKey: this.apiKey,
+      secret: this.secretKey,
+      options: {
+        defaultType: 'future',
+      },
+    });
+    this.exchange.loadTimeDifference();
     // Debug logging
     this.logger.log(`🔑 Binance API Key: ${this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'Not configured'}`);
     this.logger.log(`🔐 Binance Secret: ${this.secretKey ? '***configured***' : 'Not configured'}`);
@@ -131,35 +139,6 @@ export class BinanceConnector extends ExchangeConnector {
     }
   }
 
-  async getPositions(): Promise<Position[]> {
-    try {
-      // Sử dụng ExchangeAuthUtils để tạo signed query
-      const { fullQuery } = ExchangeAuthUtils.createBinanceSignedQuery(this.secretKey);
-      const headers = ExchangeAuthUtils.createAuthHeaders(this.apiKey, undefined, undefined, 'binance');
-
-      const response = await axios.get(`https://fapi.binance.com/fapi/v2/positionRisk?${fullQuery}`, {
-        headers
-      });
-
-      const openPositions = response.data
-        .filter((p: any) => parseFloat(p.positionAmt) !== 0)
-        .map((p: any) => ({
-          symbol: p.symbol,
-          positionAmt: parseFloat(p.positionAmt),
-          entryPrice: parseFloat(p.entryPrice),
-          unrealizedProfit: parseFloat(p.unRealizedProfit),
-          leverage: parseInt(p.leverage),
-          marginType: p.marginType,
-          isolatedMargin: parseFloat(p.isolatedMargin),
-          positionSide: p.positionSide,
-        }));
-      return openPositions;
-    } catch (error) {
-      this.logger.error('Failed to fetch positions', error);
-      throw error;
-    }
-  }
-
   async placeOrder(
     symbol: string,
     side: 'BUY' | 'SELL',
@@ -174,6 +153,7 @@ export class BinanceConnector extends ExchangeConnector {
         defaultType: 'future',
       },
     });
+    symbol = `${formatPair(symbol)}`;
     // Đồng bộ server time trước khi thực hiện
     await exchange.loadTimeDifference();
 
@@ -187,11 +167,39 @@ export class BinanceConnector extends ExchangeConnector {
     return result;
   }
 
-  async cancelOrder(symbol: string, orderId: string): Promise<boolean> {
-    return true;
+  async getPosition(symbol:string): Promise<PositionInfo[]> {
+    const position = await this.exchange.fetchPositions([symbol]);
+    return position.map((p: any) => ({
+      symbol: p.symbol,
+      positionAmt: parseFloat(p.info.positionAmt),
+      entryPrice: parseFloat(p.entryPrice),
+      unrealizedPnl: parseFloat(p.unrealizedPnl),
+      volume: parseInt(p.notional),
+      marginType: p.marginType,
+      USDValue: parseFloat(p.initialMargin),
+      side: p.side.toLowerCase(),
+    }));
   }
 
-  async getOrder(symbol: string, orderId: string) {
+  async closePosition(symbol: string): Promise<any> {
+    // Đồng bộ server time trước khi thực hiện
+    await this.exchange.loadTimeDifference();
+    const position = (await this.exchange.fetchPositions([symbol]))[0];
+    if (!position) {
+      throw new Error(`No open position found for symbol: ${symbol}`);
+    }
+
+    const { side, amount } = getCloseOrderParams(position);
+    const order = await this.exchange.createOrder(symbol, 'market', side, amount, undefined, {
+      reduceOnly: true,
+    });
+
+    return order;
   }
 
+  async getFundingHistory(symbol: string, limit = 1): Promise<any[]> {
+    const history = await this.exchange.fetchFundingHistory(symbol, undefined, limit);
+    return history;
+  }
+     
 }

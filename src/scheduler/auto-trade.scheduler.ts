@@ -121,8 +121,8 @@ export class AutoTradeScheduler {
     return OpportunityFilter.getSimpleStats(bestOpportunities);
   }
 
-  // Chạy mỗi 30 giây để quét cơ hội
-  @Cron(CronExpression.EVERY_30_SECONDS)
+  // Chạy mỗi 10 giây để quét cơ hội
+  @Cron(CronExpression.EVERY_10_SECONDS)
   async scanForOpportunities() {
     if (!this.config.enabled) {
       return;
@@ -155,14 +155,13 @@ export class AutoTradeScheduler {
       }
       
       // Lọc opportunities (loại bỏ duplicate, chọn tốt nhất theo profit)
-      const bestOpportunities = OpportunityFilter.getTopOpportunities(this.rawOpportunities, 10);
+      const bestOpportunities = OpportunityFilter.getTopOpportunities(this.rawOpportunities, 5);
       
       // Broadcast optimized opportunities
       this.tradingGateway?.broadcastOpportunitiesUpdate(Array.from(fundingRates.keys()));
       
       // Execute trades cho top opportunities
       await this.executeTopOpportunities(bestOpportunities);
-      
       // Quản lý các position đang mở
       await this.manageActivePositions();
       
@@ -366,6 +365,7 @@ export class AutoTradeScheduler {
    * Execute trades cho top opportunities (chỉ lấy tốt nhất, tránh duplicate)
    */
   private async executeTopOpportunities(bestOpportunities: SimpleOpportunity[]) {
+    const fundingData = await this.fundingRateService.collectFundingRates();
     
     for (const opportunity of bestOpportunities) {
       // Kiểm tra không có position trùng symbol
@@ -398,12 +398,12 @@ export class AutoTradeScheduler {
    */
   private async executeOptimizedTrade(opportunity: SimpleOpportunity) {
     try {
-      this.logger.log(
-        `🚀 Executing ${opportunity.scenarioName} for ${opportunity.symbol}: ` +
-        `${opportunity.longExchange} (${(opportunity.longFundingRate * 100).toFixed(4)}%) vs ` +
-        `${opportunity.shortExchange} (${(opportunity.shortFundingRate * 100).toFixed(4)}%) ` +
-        `Expected: ${(opportunity.expectedProfit * 100).toFixed(4)}%`
-      );
+      // this.logger.log(
+      //   `🚀 Executing ${opportunity.scenarioName} for ${opportunity.symbol}: ` +
+      //   `${opportunity.longExchange} (${(opportunity.longFundingRate * 100).toFixed(4)}%) vs ` +
+      //   `${opportunity.shortExchange} (${(opportunity.shortFundingRate * 100).toFixed(4)}%) ` +
+      //   `Expected: ${(opportunity.expectedProfit * 100).toFixed(4)}%`
+      // );
 
       const tradeExecution: TradeExecution = {
         id: `${opportunity.scenarioId}_${opportunity.symbol}_${Date.now()}`,
@@ -419,6 +419,7 @@ export class AutoTradeScheduler {
         executedAt: new Date(),
         closeAt: undefined
       };
+
 
       // Thêm vào danh sách active positions
       this.activePositions.push(tradeExecution);
@@ -438,7 +439,6 @@ export class AutoTradeScheduler {
   }
   
   private async executeArbitrageTrade(
-    scenario: FundingArbitrageScenario,
     symbol: string,
     exchange1: string,
     exchange2: string,
@@ -447,15 +447,10 @@ export class AutoTradeScheduler {
     expectedProfit: number
   ) {
     try {
-      this.logger.log(`🎯 Executing ${scenario.name} for ${symbol}: ${exchange1} vs ${exchange2}, Expected profit: ${(expectedProfit * 100).toFixed(4)}%`);
-      
-      // Tính toán position size dựa trên risk management
-      const positionSize = this.calculatePositionSize(scenario, expectedProfit);
-      
-      // Tạo trade execution record
+        // Tạo trade execution record
       const execution: TradeExecution = {
-        id: `${scenario.id}_${symbol}_${Date.now()}`,
-        scenarioId: scenario.id,
+        id: `${symbol}_${Date.now()}`,
+        scenarioId: 2,
         symbol,
         longExchange: rate1.fundingRate < rate2.fundingRate ? exchange1 : exchange2,
         shortExchange: rate1.fundingRate < rate2.fundingRate ? exchange2 : exchange1,
@@ -474,10 +469,8 @@ export class AutoTradeScheduler {
       execution.status = 'ACTIVE';
       this.activePositions.push(execution);
       
-      this.logger.log(`✅ Trade executed successfully: ${scenario.name} for ${symbol}`);
       
     } catch (error) {
-      this.logger.error(`❌ Failed to execute trade for ${scenario.name}: ${symbol}`, error);
     }
   }
   
@@ -600,7 +593,7 @@ export class AutoTradeScheduler {
   // Manual start auto trading với interval
   private intervalId?: NodeJS.Timeout;
 
-  startAutoTrading(intervalMinutes = 5) {
+  startAutoTrading(intervalMinutes = 1) {
     if (this.intervalId) {
       this.stopAutoTrading();
     }
