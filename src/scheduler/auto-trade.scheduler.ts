@@ -368,25 +368,13 @@ export class AutoTradeScheduler {
     const fundingData = await this.fundingRateService.collectFundingRates();
     
     for (const opportunity of bestOpportunities) {
-      // Kiểm tra không có position trùng symbol
-      const existingPosition = this.activePositions.find(p => 
-        p.symbol === opportunity.symbol && p.status === 'ACTIVE'
-      );
-      
-      if (existingPosition) {
-        this.logger.log(`⏭️  Skipping ${opportunity.symbol} - already have active position`);
-        continue;
-      }
+        // Tìm funding time cho long và short exchange
+        const longRates = fundingData.get(opportunity.longExchange) || [];
+        const shortRates = fundingData.get(opportunity.shortExchange) || [];
 
-      // Kiểm tra số lượng position tối đa cho scenario
-      const scenarioPositions = this.activePositions.filter(p => 
-        p.scenarioId === opportunity.scenarioId && p.status === 'ACTIVE'
-      ).length;
-      
-      if (scenarioPositions >= this.config.maxPositionsPerScenario) {
-        this.logger.log(`⏭️  Skipping ${opportunity.symbol} - max positions for scenario ${opportunity.scenarioId}`);
-        continue;
-      }
+        const longRate = longRates.find(r => r.symbol === opportunity.symbol);
+        const shortRate = shortRates.find(r => r.symbol === opportunity.symbol);
+
       
       // Execute trade
       await this.executeOptimizedTrade(opportunity);
