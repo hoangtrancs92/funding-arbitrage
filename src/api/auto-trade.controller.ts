@@ -66,7 +66,7 @@ export class AutoTradeController {
 
         const longRate = longRates.find(r => r.symbol === opportunity.symbol);
         const shortRate = shortRates.find(r => r.symbol === opportunity.symbol);
-        console.log('longRate.nextFundingTime:', longRate?.nextFundingTime);
+
         return {
           symbol: opportunity.symbol,
           scenarioId: opportunity.scenarioId,
