@@ -223,6 +223,7 @@ export class BybitConnector extends ExchangeConnector {
   async closePosition(symbol: string): Promise<boolean> {
     // Đồng bộ server time trước khi thực hiện
     await this.exchange.loadTimeDifference();
+    symbol = `${formatPair(symbol)}:USDT`;
     const position = (await this.exchange.fetchPositions([symbol]))[0];
     if (!position) {
       throw new Error(`No open position found for symbol: ${symbol}`);
