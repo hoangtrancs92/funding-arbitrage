@@ -639,4 +639,51 @@ export class AutoTradeScheduler {
       this.logger.log('🛑 Auto trading stopped');
     }
   }
+
+  async bestPositions() {
+    try {
+      // Trả về optimized opportunities thay vì raw positions
+      const bestOpportunities = this.getBestOpportunities();
+      
+      // Lấy thông tin funding time cho từng symbol/exchange
+      const fundingData = await this.fundingRateService.collectFundingRates();
+      
+      return {
+        positions: bestOpportunities.map(opportunity => {
+          // Tìm funding time cho long và short exchange
+          const longRates = fundingData.get(opportunity.longExchange) || [];
+          const shortRates = fundingData.get(opportunity.shortExchange) || [];
+
+          const longRate = longRates.find(r => r.symbol === opportunity.symbol);
+          const shortRate = shortRates.find(r => r.symbol === opportunity.symbol);
+          
+          return {
+            symbol: opportunity.symbol,
+            scenarioId: opportunity.scenarioId,
+            longExchange: opportunity.longExchange,
+            shortExchange: opportunity.shortExchange,
+            expectedProfit: opportunity.expectedProfit,
+            longFundingTime: longRate?.nextFundingTime ? new Date(Number(longRate.nextFundingTime)) : null,
+            shortFundingTime: shortRate?.nextFundingTime ? new Date(Number(shortRate.nextFundingTime)) : null,
+            longFundingRate: longRate?.fundingRate || 0,
+            shortFundingRate: shortRate?.fundingRate || 0,
+            timestamp: opportunity.timestamp
+          };
+        }),
+        total: bestOpportunities.length,
+        lastUpdated: new Date(),
+        fundingRates: Object.fromEntries(fundingData), // Include full funding data
+        statistics: this.getOpportunityStatistics()
+      };
+    } catch (error) {
+      this.logger.error('Error in bestPositions:', error);
+      return {
+        positions: [],
+        total: 0,
+        lastUpdated: new Date(),
+        fundingRates: {},
+        statistics: { totalOpportunities: 0, averageProfit: 0 }
+      };
+    }
+  }
 }

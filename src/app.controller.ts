@@ -207,4 +207,100 @@ export class AppController {
       };
     }
   }
+
+  @Post('test/long-binance-short-bybit/')
+  async testLongBinanceShortBybit(@Body() body: {
+    symbol: string;
+    initialMargin: number;
+    leverage: number; // USDT margin amount
+  }) {
+    try {
+      // Step 1: Open a long position on Binance
+      const binanceOrder = await this.binanceConnector.placeOrder(
+        body.symbol,
+        'BUY',
+        body.initialMargin,
+        body.leverage
+      );
+
+      // Step 2: Open a short position on Bybit
+      const bybitOrder = await this.bybitConnector.placeOrder(
+        body.symbol,
+        'SELL',
+        body.initialMargin,
+        body.leverage
+      );
+
+      return {
+        success: true,
+        binanceOrder,
+        bybitOrder
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Post('test/long-bybit-short-binance/')
+  async testLongBybitShortBinance(@Body() body: {
+    symbol: string;
+    initialMargin: number;
+    leverage: number;
+  }) {
+    try {
+      // Step 1: Open a long position on Bybit
+      const bybitOrder = await this.bybitConnector.placeOrder(
+        body.symbol,
+        'BUY',
+        body.initialMargin,
+        body.leverage
+      );
+
+      // Step 2: Open a short position on Binance
+      const binanceOrder = await this.binanceConnector.placeOrder(
+        body.symbol,
+        'SELL',
+        body.initialMargin,
+        body.leverage
+      );
+
+      return {
+        success: true,
+        bybitOrder,
+        binanceOrder
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Post('test/cancel-2-way-positions/')
+  async cancelTwoWayPositions(@Body() body: {
+    symbol: string;
+  }) {
+    try {
+      // Step 1: Close long position on Binance
+      const binanceClose = await this.binanceConnector.closePosition(body.symbol);
+
+      // Step 2: Close short position on Bybit
+      const bybitClose = await this.bybitConnector.closePosition(body.symbol);
+
+      return {
+        success: true,
+        binanceClose,
+        bybitClose
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 }
