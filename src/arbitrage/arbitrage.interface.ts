@@ -13,7 +13,13 @@ export interface ArbitrageOpportunity {
   maxCapital: number;
   estimatedDuration: number; // in milliseconds
   createdAt: Date;
-  status: 'IDENTIFIED' | 'ANALYZING' | 'READY' | 'EXECUTED' | 'CLOSED' | 'EXPIRED';
+  status:
+    | 'IDENTIFIED'
+    | 'ANALYZING'
+    | 'READY'
+    | 'EXECUTED'
+    | 'CLOSED'
+    | 'EXPIRED';
 }
 
 export interface ArbitragePosition {

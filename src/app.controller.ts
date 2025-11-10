@@ -13,7 +13,7 @@ export class AppController {
     private readonly fundingRateService: FundingRateService,
     private readonly binanceConnector: BinanceConnector,
     private readonly bybitConnector: BybitConnector,
-  ) { }
+  ) {}
 
   @Get()
   getHello(): string {
@@ -33,7 +33,9 @@ export class AppController {
   async getHealth() {
     try {
       // Quick health check by fetching a small amount of data
-      const fundingRates = await this.fundingRateService.collectFundingRates(['BTCUSDT']);
+      const fundingRates = await this.fundingRateService.collectFundingRates([
+        'BTCUSDT',
+      ]);
 
       return {
         status: 'healthy',
@@ -56,7 +58,9 @@ export class AppController {
   @Get('dashboard')
   getDashboard(@Res() res) {
     const path = require('path');
-    return res.sendFile(path.join(__dirname, '..', 'src', 'public', 'dashboard.html'));
+    return res.sendFile(
+      path.join(__dirname, '..', 'src', 'public', 'dashboard.html'),
+    );
   }
 
   // ===== TEST ENDPOINTS =====
@@ -68,83 +72,84 @@ export class AppController {
       return {
         success: true,
         data: balances,
-        message: `Retrieved ${balances.length} balance entries from Binance`
+        message: `Retrieved ${balances.length} balance entries from Binance`,
       };
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   @Post('test/binance/order/')
-  async testBinanceOrder(@Body() body: {
-    symbol: string;
-    side: 'BUY' | 'SELL';
-    initialMargin: number; // USDT margin amount
-    leverage?: number;
-    marginMode?: 'isolated' | 'cross';
-  }) {
+  async testBinanceOrder(
+    @Body()
+    body: {
+      symbol: string;
+      side: 'BUY' | 'SELL';
+      initialMargin: number; // USDT margin amount
+      leverage?: number;
+      marginMode?: 'isolated' | 'cross';
+    },
+  ) {
     try {
       const orderResult = await this.binanceConnector.placeOrder(
         body.symbol,
         body.side,
         body.initialMargin,
         body.leverage,
-        body.marginMode
+        body.marginMode,
       );
       return { orderResult };
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   @Post('test/binance/cancel-order/')
-  async testBinanceCancelOrder(@Body() body: {
-    symbol: string;
-  }) {
+  async testBinanceCancelOrder(@Body() body: { symbol: string }) {
     try {
       const result = await this.binanceConnector.closePosition(body.symbol);
       return { result };
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   @Get('test/binance/position/')
-  async testBinanceGetPosition(@Body() body: {
-    symbol: string;
-  }) {
+  async testBinanceGetPosition(@Body() body: { symbol: string }) {
     try {
       const position = await this.binanceConnector.getPosition(body.symbol);
       return { position };
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   @Get('test/binance/funding-history/')
-  async testBinanceGetFundingHistory(@Body() body: {
-    symbol: string;
-    limit?: number;
-  }) {
+  async testBinanceGetFundingHistory(
+    @Body() body: { symbol: string; limit?: number },
+  ) {
     try {
-      const history = await this.binanceConnector.getFundingHistory(body.symbol, body.limit);
+      const history = await this.binanceConnector.getFundingHistory(
+        body.symbol,
+        body.limit,
+      );
       return { history };
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -158,52 +163,53 @@ export class AppController {
       return {
         success: true,
         data: balances,
-        message: `Retrieved ${balances.length} balance entries from Bybit`
+        message: `Retrieved ${balances.length} balance entries from Bybit`,
       };
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   @Post('test/bybit/order/')
-  async testBybitOrder(@Body() body: {
-    symbol: string;
-    side: 'BUY' | 'SELL';
-    initialMargin: number; // USDT margin amount
-    leverage?: number;
-    marginMode?: 'isolated' | 'cross';
-  }) {
+  async testBybitOrder(
+    @Body()
+    body: {
+      symbol: string;
+      side: 'BUY' | 'SELL';
+      initialMargin: number; // USDT margin amount
+      leverage?: number;
+      marginMode?: 'isolated' | 'cross';
+    },
+  ) {
     try {
       const orderResult = await this.bybitConnector.placeOrder(
         body.symbol,
         body.side,
         body.initialMargin,
         body.leverage,
-        body.marginMode
+        body.marginMode,
       );
       return { orderResult };
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   @Post('test/bybit/cancel-order/')
-  async testBybitCancelOrder(@Body() body: {
-    symbol: string;
-  }) {
+  async testBybitCancelOrder(@Body() body: { symbol: string }) {
     try {
       const result = await this.bybitConnector.closePosition(body.symbol);
       return { result };
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error.message,
       };
     }
   }

@@ -7,30 +7,32 @@ export class ProfitCalculator {
     rate1: number,
     rate2: number,
     exchange1Price?: number,
-    exchange2Price?: number
+    exchange2Price?: number,
   ): number {
     switch (scenarioId) {
       case 1:
         // Scenario 1: Funding trái dấu - Lợi nhuận = tổng funding rate cả 2 sàn
         // Long sàn funding âm (nhận tiền) + Short sàn funding dương (nhận tiền)
         return Math.abs(rate1) + Math.abs(rate2);
-        
+
       case 2:
         // Scenario 2: Funding lệch biên độ - Lợi nhuận = hiệu số funding rate
         // Long sàn funding thấp + Short sàn funding cao = chênh lệch
         return Math.abs(rate1 - rate2);
-        
+
       case 3:
         // Scenario 3: Gap giá + funding đồng nhất
         // Lợi nhuận chủ yếu từ gap giá, funding rate chỉ là chi phí
         if (exchange1Price && exchange2Price) {
-          const priceGap = Math.abs(exchange1Price - exchange2Price) / Math.min(exchange1Price, exchange2Price);
+          const priceGap =
+            Math.abs(exchange1Price - exchange2Price) /
+            Math.min(exchange1Price, exchange2Price);
           const fundingCost = Math.abs(rate1 + rate2) / 2; // Chi phí funding trung bình
           return priceGap - fundingCost;
         }
         // Fallback nếu không có giá
         return Math.abs(rate1 - rate2);
-        
+
       case 4:
         // Scenario 4: Timing desync - Lợi nhuận từ chênh lệch thời gian funding
         // Có thể nhận funding từ cả 2 sàn nếu timing khác nhau
@@ -41,12 +43,12 @@ export class ProfitCalculator {
           // Nếu cùng dấu = lợi nhuận từ timing arbitrage
           return Math.abs(rate1 - rate2) * 0.5; // Giảm 50% do rủi ro timing
         }
-        
+
       case 5:
         // Scenario 5: Funding đồng pha mạnh - Lợi nhuận = hiệu số của 2 funding rate
         // Ví dụ: Sàn A: 0.6%, Sàn B: 0.8% => Expected Profit = |0.6 - 0.8| = 0.2%
         return Math.abs(rate1 - rate2);
-        
+
       default:
         // Default fallback
         return Math.abs(rate1 - rate2);
@@ -62,21 +64,27 @@ export class ProfitCalculator {
     rate2: number,
     confidence: number = 1.0,
     exchange1Price?: number,
-    exchange2Price?: number
+    exchange2Price?: number,
   ): number {
-    const baseProfit = this.calculateExpectedProfit(scenarioId, rate1, rate2, exchange1Price, exchange2Price);
-    
+    const baseProfit = this.calculateExpectedProfit(
+      scenarioId,
+      rate1,
+      rate2,
+      exchange1Price,
+      exchange2Price,
+    );
+
     // Risk adjustment factors cho từng scenario
     const riskFactors = {
       1: 0.95, // Scenario 1: Low risk, high confidence
       2: 0.85, // Scenario 2: Medium risk
       3: 0.75, // Scenario 3: Depends on price execution
-      4: 0.60, // Scenario 4: High risk due to timing
-      5: 0.80  // Scenario 5: Medium-high risk
+      4: 0.6, // Scenario 4: High risk due to timing
+      5: 0.8, // Scenario 5: Medium-high risk
     };
-    
+
     const riskFactor = riskFactors[scenarioId] || 0.7;
-    
+
     return baseProfit * riskFactor * confidence;
   }
 
@@ -97,7 +105,10 @@ export class ProfitCalculator {
   /**
    * Tính potential USD profit với position size
    */
-  static calculateUSDProfit(profitPercentage: number, positionSize: number): number {
+  static calculateUSDProfit(
+    profitPercentage: number,
+    positionSize: number,
+  ): number {
     return profitPercentage * positionSize;
   }
 }

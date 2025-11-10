@@ -42,57 +42,57 @@ export interface Position {
 }
 
 export interface OrderResult {
-  orderId: string;       // Mã lệnh
-  symbol: string;        // BTC/USDT
-  side: any;  // Hướng vào lệnh
+  orderId: string; // Mã lệnh
+  symbol: string; // BTC/USDT
+  side: any; // Hướng vào lệnh
   type: any;
 
-  quantity: number;      // Số lượng đặt
-  filled: number;        // Khớp được bao nhiêu
+  quantity: number; // Số lượng đặt
+  filled: number; // Khớp được bao nhiêu
 
-  avgPrice?: number;     // Giá khớp trung bình (market order)
-  timestamp: number;     // Thời điểm tạo lệnh (ms)
+  avgPrice?: number; // Giá khớp trung bình (market order)
+  timestamp: number; // Thời điểm tạo lệnh (ms)
 }
 
 export interface PositionInfo {
-  symbol: string
+  symbol: string;
   /** Số lượng hợp đồng, dương = long, âm = short */
-  positionAmt: number
+  positionAmt: number;
   /** Giá vào lệnh trung bình */
-  entryPrice: number
+  entryPrice: number;
   /** Lãi/lỗ chưa thực hiện (USDT) */
-  unrealizedPnl: number
+  unrealizedPnl: number;
   /** Khối lượng danh nghĩa (notional value) */
-  volume: number
+  volume: number;
   /** Loại margin: ISOLATED hoặc CROSSED */
-  marginType: 'ISOLATED' | 'CROSSED' | string
+  marginType: 'ISOLATED' | 'CROSSED' | string;
   /** Giá trị ký quỹ ban đầu (USDT) */
-  USDValue: number,
+  USDValue: number;
   /** Hướng lệnh: long hoặc short */
-  side: 'long' | 'short' | string
+  side: 'long' | 'short' | string;
 }
 
 export abstract class ExchangeConnector {
   abstract exchangeName: string;
-  
+
   // Market Data Methods
   abstract getFuturesContracts(): Promise<FuturesContract[]>;
   abstract getFundingRates(symbols?: string[]): Promise<FundingRate[]>;
   abstract getOrderBook(symbol: string, limit?: number): Promise<OrderBook>;
   abstract getMarkPrice(symbol: string): Promise<number>;
-  
+
   // Account Methods
   abstract getBalances(): Promise<Balance[]>;
   abstract closePosition(symbol: string, orderId: string): Promise<boolean>;
   abstract getPosition(symbol: string): Promise<PositionInfo[]>;
   abstract getFundingHistory(symbol: string, limit?: number): Promise<any[]>;
-  
+
   // Trading Methods
   abstract placeOrder(
     symbol: string,
     side: 'BUY' | 'SELL',
     initialMargin: number, // Số tiền margin ban đầu (USDT)
     leverage?: number, // Default sẽ lấy từ account settings
-    marginType?: 'cross' | 'isolated' // Loại margin
-  )
+    marginType?: 'cross' | 'isolated', // Loại margin
+  );
 }

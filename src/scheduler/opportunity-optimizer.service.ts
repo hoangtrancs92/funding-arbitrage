@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OptimizedOpportunity, OpportunityAnalysis } from './opportunity.interface';
+import {
+  OptimizedOpportunity,
+  OpportunityAnalysis,
+} from './opportunity.interface';
 import { FundingArbitrageScenario } from './auto-trade.interface';
 
 @Injectable()
@@ -12,7 +15,7 @@ export class OpportunityOptimizer {
    */
   optimizeOpportunities(
     rawOpportunities: any[],
-    scenarios: FundingArbitrageScenario[]
+    scenarios: FundingArbitrageScenario[],
   ): OpportunityAnalysis[] {
     // Reset opportunities map
     this.currentOpportunities.clear();
@@ -29,9 +32,12 @@ export class OpportunityOptimizer {
   /**
    * Thêm hoặc cập nhật opportunity cho một symbol
    */
-  private addOrUpdateOpportunity(opportunity: any, scenarios: FundingArbitrageScenario[]) {
+  private addOrUpdateOpportunity(
+    opportunity: any,
+    scenarios: FundingArbitrageScenario[],
+  ) {
     const symbol = opportunity.symbol;
-    const scenario = scenarios.find(s => s.id === opportunity.scenarioId);
+    const scenario = scenarios.find((s) => s.id === opportunity.scenarioId);
 
     if (!scenario) {
       return;
@@ -51,7 +57,7 @@ export class OpportunityOptimizer {
       riskLevel: scenario.riskLevel,
       priority: this.calculatePriority(opportunity, scenario),
       timing: scenario.timing,
-      lastUpdated: new Date()
+      lastUpdated: new Date(),
     };
 
     // Lấy phân tích hiện tại của symbol hoặc tạo mới
@@ -61,7 +67,7 @@ export class OpportunityOptimizer {
         symbol,
         opportunities: [],
         bestOpportunity: optimizedOpp,
-        totalOpportunities: 0
+        totalOpportunities: 0,
       };
     }
 
@@ -80,11 +86,15 @@ export class OpportunityOptimizer {
   /**
    * Tính toán confidence score (0-1)
    */
-  private calculateConfidence(opportunity: any, scenario: FundingArbitrageScenario): number {
+  private calculateConfidence(
+    opportunity: any,
+    scenario: FundingArbitrageScenario,
+  ): number {
     let confidence = 0.5; // Base confidence
 
     // Tăng confidence dựa trên expected profit
-    const profitMultiplier = opportunity.expectedProfit / scenario.minProfitThreshold;
+    const profitMultiplier =
+      opportunity.expectedProfit / scenario.minProfitThreshold;
     confidence += Math.min(profitMultiplier * 0.2, 0.3);
 
     // Tăng confidence dựa trên risk level (LOW risk = high confidence)
@@ -111,7 +121,10 @@ export class OpportunityOptimizer {
   /**
    * Tính toán priority score (càng cao càng ưu tiên)
    */
-  private calculatePriority(opportunity: any, scenario: FundingArbitrageScenario): number {
+  private calculatePriority(
+    opportunity: any,
+    scenario: FundingArbitrageScenario,
+  ): number {
     let priority = 0;
 
     // Priority dựa trên expected profit (weight: 40%)
@@ -120,23 +133,26 @@ export class OpportunityOptimizer {
     // Priority dựa trên scenario type (weight: 30%)
     const scenarioPriority = {
       1: 100, // Funding trái dấu - ưu tiên cao nhất
-      2: 80,  // Funding lệch biên độ
-      3: 70,  // Gap giá
-      5: 60,  // Funding đồng pha mạnh
-      4: 40   // Timing desync - rủi ro cao nhất
+      2: 80, // Funding lệch biên độ
+      3: 70, // Gap giá
+      5: 60, // Funding đồng pha mạnh
+      4: 40, // Timing desync - rủi ro cao nhất
     };
     priority += (scenarioPriority[scenario.id] || 50) * 0.3;
 
     // Priority dựa trên risk level (weight: 20%)
     const riskPriority = {
-      'LOW': 30,
-      'MEDIUM': 20,
-      'HIGH': 10
+      LOW: 30,
+      MEDIUM: 20,
+      HIGH: 10,
     };
     priority += riskPriority[scenario.riskLevel] * 0.2;
 
     // Bonus cho funding rate cao
-    const avgFundingRate = (Math.abs(opportunity.longFundingRate) + Math.abs(opportunity.shortFundingRate)) / 2;
+    const avgFundingRate =
+      (Math.abs(opportunity.longFundingRate) +
+        Math.abs(opportunity.shortFundingRate)) /
+      2;
     priority += avgFundingRate * 100 * 0.1;
 
     return priority;
@@ -147,7 +163,7 @@ export class OpportunityOptimizer {
    */
   getBestOpportunities(limit: number = 10): OptimizedOpportunity[] {
     const bestOpportunities = Array.from(this.currentOpportunities.values())
-      .map(analysis => analysis.bestOpportunity)
+      .map((analysis) => analysis.bestOpportunity)
       .sort((a, b) => b.priority - a.priority)
       .slice(0, limit);
 
@@ -174,29 +190,36 @@ export class OpportunityOptimizer {
    */
   getStatistics() {
     const totalSymbols = this.currentOpportunities.size;
-    const totalOpportunities = Array.from(this.currentOpportunities.values())
-      .reduce((sum, analysis) => sum + analysis.totalOpportunities, 0);
-    
-    const riskLevelCount = Array.from(this.currentOpportunities.values())
-      .reduce((count, analysis) => {
+    const totalOpportunities = Array.from(
+      this.currentOpportunities.values(),
+    ).reduce((sum, analysis) => sum + analysis.totalOpportunities, 0);
+
+    const riskLevelCount = Array.from(
+      this.currentOpportunities.values(),
+    ).reduce(
+      (count, analysis) => {
         const riskLevel = analysis.bestOpportunity.riskLevel;
         count[riskLevel] = (count[riskLevel] || 0) + 1;
         return count;
-      }, {} as Record<string, number>);
+      },
+      {} as Record<string, number>,
+    );
 
-    const scenarioCount = Array.from(this.currentOpportunities.values())
-      .reduce((count, analysis) => {
+    const scenarioCount = Array.from(this.currentOpportunities.values()).reduce(
+      (count, analysis) => {
         const scenarioId = analysis.bestOpportunity.scenarioId;
         count[scenarioId] = (count[scenarioId] || 0) + 1;
         return count;
-      }, {} as Record<number, number>);
+      },
+      {} as Record<number, number>,
+    );
 
     return {
       totalSymbols,
       totalOpportunities,
       riskLevelCount,
       scenarioCount,
-      lastUpdated: new Date()
+      lastUpdated: new Date(),
     };
   }
 }

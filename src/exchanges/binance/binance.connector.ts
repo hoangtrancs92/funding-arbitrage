@@ -1,10 +1,23 @@
 import axios from 'axios';
-import { ExchangeConnector, FuturesContract, FundingRate, OrderBook, Balance, Position, OrderResult, PositionInfo } from '../exchange.interface';
+import {
+  ExchangeConnector,
+  FuturesContract,
+  FundingRate,
+  OrderBook,
+  Balance,
+  Position,
+  OrderResult,
+  PositionInfo,
+} from '../exchange.interface';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExchangeAuthUtils } from '../utils/auth.utils';
 import { binance } from 'ccxt';
-import { calculateCoinAmountFromMargin, formatPair, getCloseOrderParams } from 'src/common/helper';
+import {
+  calculateCoinAmountFromMargin,
+  formatPair,
+  getCloseOrderParams,
+} from 'src/common/helper';
 
 @Injectable()
 export class BinanceConnector extends ExchangeConnector {
@@ -30,8 +43,12 @@ export class BinanceConnector extends ExchangeConnector {
     });
     this.exchange.loadTimeDifference();
     // Debug logging
-    this.logger.log(`🔑 Binance API Key: ${this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'Not configured'}`);
-    this.logger.log(`🔐 Binance Secret: ${this.secretKey ? '***configured***' : 'Not configured'}`);
+    this.logger.log(
+      `🔑 Binance API Key: ${this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'Not configured'}`,
+    );
+    this.logger.log(
+      `🔐 Binance Secret: ${this.secretKey ? '***configured***' : 'Not configured'}`,
+    );
   }
 
   async getFuturesContracts(): Promise<FuturesContract[]> {
@@ -45,9 +62,15 @@ export class BinanceConnector extends ExchangeConnector {
         baseAsset: symbol.baseAsset,
         quoteAsset: symbol.quoteAsset,
         contractSize: parseFloat(symbol.contractSize || '1'),
-        tickSize: parseFloat(symbol.filters.find((f: any) => f.filterType === 'PRICE_FILTER')?.tickSize || '0.01'),
-        minOrderSize: parseFloat(symbol.filters.find((f: any) => f.filterType === 'LOT_SIZE')?.minQty || '0.001'),
-        status: symbol.status === 'TRADING' ? 'TRADING' : 'SUSPENDED'
+        tickSize: parseFloat(
+          symbol.filters.find((f: any) => f.filterType === 'PRICE_FILTER')
+            ?.tickSize || '0.01',
+        ),
+        minOrderSize: parseFloat(
+          symbol.filters.find((f: any) => f.filterType === 'LOT_SIZE')
+            ?.minQty || '0.001',
+        ),
+        status: symbol.status === 'TRADING' ? 'TRADING' : 'SUSPENDED',
       }));
     } catch (error) {
       this.logger.error('Failed to fetch futures contracts', error);
@@ -71,7 +94,9 @@ export class BinanceConnector extends ExchangeConnector {
         fundingRate: parseFloat(rate.lastFundingRate),
         fundingTime: rate.fundingTime,
         nextFundingTime: rate.nextFundingTime,
-        predictedFundingRate: rate.estimatedSettlePrice ? parseFloat(rate.estimatedSettlePrice) : undefined
+        predictedFundingRate: rate.estimatedSettlePrice
+          ? parseFloat(rate.estimatedSettlePrice)
+          : undefined,
       }));
     } catch (error) {
       this.logger.error('Failed to fetch funding rates', error);
@@ -81,14 +106,22 @@ export class BinanceConnector extends ExchangeConnector {
 
   async getOrderBook(symbol: string, limit = 500): Promise<OrderBook> {
     try {
-      const response = await fetch(`${this.baseUrl}/fapi/v1/depth?symbol=${symbol}&limit=${limit}`);
+      const response = await fetch(
+        `${this.baseUrl}/fapi/v1/depth?symbol=${symbol}&limit=${limit}`,
+      );
       const data = await response.json();
 
       return {
         symbol,
-        bids: data.bids.map(([price, qty]: [string, string]) => [parseFloat(price), parseFloat(qty)]),
-        asks: data.asks.map(([price, qty]: [string, string]) => [parseFloat(price), parseFloat(qty)]),
-        timestamp: Date.now()
+        bids: data.bids.map(([price, qty]: [string, string]) => [
+          parseFloat(price),
+          parseFloat(qty),
+        ]),
+        asks: data.asks.map(([price, qty]: [string, string]) => [
+          parseFloat(price),
+          parseFloat(qty),
+        ]),
+        timestamp: Date.now(),
       };
     } catch (error) {
       this.logger.error('Failed to fetch order book', error);
@@ -98,7 +131,9 @@ export class BinanceConnector extends ExchangeConnector {
 
   async getMarkPrice(symbol: string): Promise<number> {
     try {
-      const response = await fetch(`${this.baseUrl}/fapi/v1/premiumIndex?symbol=${symbol}`);
+      const response = await fetch(
+        `${this.baseUrl}/fapi/v1/premiumIndex?symbol=${symbol}`,
+      );
       const data = await response.json();
       return parseFloat(data.markPrice);
     } catch (error) {
@@ -109,32 +144,46 @@ export class BinanceConnector extends ExchangeConnector {
 
   async getBalances(): Promise<Balance[]> {
     // ✅ Validate credentials using utility
-    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
+    const validation = ExchangeAuthUtils.validateCredentials(
+      this.apiKey,
+      this.secretKey,
+    );
     if (!validation.isValid) {
-      throw new Error(`API credentials invalid: ${validation.errors.join(', ')}`);
+      throw new Error(
+        `API credentials invalid: ${validation.errors.join(', ')}`,
+      );
     }
 
     try {
       // Sử dụng ExchangeAuthUtils để tạo signed query
-      const { fullQuery } = ExchangeAuthUtils.createBinanceSignedQuery(this.secretKey);
-      const headers = ExchangeAuthUtils.createAuthHeaders(this.apiKey, undefined, undefined, 'binance');
+      const { fullQuery } = ExchangeAuthUtils.createBinanceSignedQuery(
+        this.secretKey,
+      );
+      const headers = ExchangeAuthUtils.createAuthHeaders(
+        this.apiKey,
+        undefined,
+        undefined,
+        'binance',
+      );
 
       const res = await axios.get(
         `https://fapi.binance.com/fapi/v2/balance?${fullQuery}`,
-        { headers }
+        { headers },
       );
 
       const balances = res.data;
 
       return balances.map((item: any) => ({
         asset: item.asset,
-        free: parseFloat(item.availableBalance),  // Available để trade
+        free: parseFloat(item.availableBalance), // Available để trade
         locked: parseFloat(item.balance) - parseFloat(item.availableBalance), // Đang dùng
-        total: parseFloat(item.balance),          // Tổng tài sản futures
+        total: parseFloat(item.balance), // Tổng tài sản futures
       }));
-
     } catch (error) {
-      this.logger.error('❌ Error fetching Binance Futures balances:', error.response?.data || error.message);
+      this.logger.error(
+        '❌ Error fetching Binance Futures balances:',
+        error.response?.data || error.message,
+      );
       return [];
     }
   }
@@ -144,7 +193,7 @@ export class BinanceConnector extends ExchangeConnector {
     side: 'BUY' | 'SELL',
     initialMargin: number,
     leverage?: number,
-    marginMode: 'cross' | 'isolated' = 'isolated'
+    marginMode: 'cross' | 'isolated' = 'isolated',
   ) {
     const exchange = new binance({
       apiKey: this.apiKey,
@@ -161,13 +210,22 @@ export class BinanceConnector extends ExchangeConnector {
     await exchange.setMarginMode(marginMode, symbol);
     const ticker = await exchange.fetchTicker(symbol);
 
-    const quantity = await calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
-    const result = await exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
+    const quantity = await calculateCoinAmountFromMargin(
+      initialMargin,
+      ticker.last,
+      leverage || 1,
+    );
+    const result = await exchange.createOrder(
+      symbol,
+      'market',
+      side.toLowerCase(),
+      quantity,
+    );
 
     return result;
   }
 
-  async getPosition(symbol:string): Promise<PositionInfo[]> {
+  async getPosition(symbol: string): Promise<PositionInfo[]> {
     const position = await this.exchange.fetchPositions([symbol]);
     return position.map((p: any) => ({
       symbol: p.symbol,
@@ -190,16 +248,26 @@ export class BinanceConnector extends ExchangeConnector {
     }
 
     const { side, amount } = getCloseOrderParams(position);
-    const order = await this.exchange.createOrder(symbol, 'market', side, amount, undefined, {
-      reduceOnly: true,
-    });
+    const order = await this.exchange.createOrder(
+      symbol,
+      'market',
+      side,
+      amount,
+      undefined,
+      {
+        reduceOnly: true,
+      },
+    );
 
     return order;
   }
 
   async getFundingHistory(symbol: string, limit = 1): Promise<any[]> {
-    const history = await this.exchange.fetchFundingHistory(symbol, undefined, limit);
+    const history = await this.exchange.fetchFundingHistory(
+      symbol,
+      undefined,
+      limit,
+    );
     return history;
   }
-     
 }
