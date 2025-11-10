@@ -42,7 +42,7 @@ export class OpportunityFilter {
         longFundingRate: best.longFundingRate,
         shortFundingRate: best.shortFundingRate,
         expectedProfit: best.expectedProfit,
-        timestamp: best.timestamp || new Date()
+        timestamp: best.timestamp || new Date().toISOString()
       });
     }
     

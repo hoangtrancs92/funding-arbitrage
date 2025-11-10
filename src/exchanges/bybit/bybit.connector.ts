@@ -214,7 +214,7 @@ export class BybitConnector extends ExchangeConnector {
 
     await exchange.setMarginMode(marginMode, symbol);
     const ticker = await exchange.fetchTicker(symbol);
-    const quantity = await calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
+    const quantity = calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
     const result = await exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
 
     return result;
