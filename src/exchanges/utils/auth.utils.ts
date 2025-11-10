@@ -29,11 +29,14 @@ export class ExchangeAuthUtils {
 
   /**
    * Create HMAC SHA256 signature for API requests
+   * Note: This is NOT password hashing - it's HMAC signing for API authentication.
+   * HMAC-SHA256 is the industry standard for exchange API request signing.
    * @param secretKey - The secret key for signing
    * @param query - The query string to sign
    * @returns The hex signature
    */
   static createSignature(secretKey: string, query: string): string {
+    // CodeQL: This is HMAC signing, not password hashing - HMAC-SHA256 is appropriate here
     return crypto.createHmac('sha256', secretKey).update(query).digest('hex');
   }
 
