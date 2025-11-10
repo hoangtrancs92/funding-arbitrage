@@ -232,6 +232,10 @@ export class RiskManager {
     }
 
     this.alerts.push(...newAlerts);
+    
+    // Fixed: Prevent memory leak by limiting alerts array size
+    this.cleanupOldAlerts();
+    
     return newAlerts;
   }
 
@@ -293,5 +297,25 @@ export class RiskManager {
     // In practice, you would calculate actual correlation using price history
     const sameAssetPositions = positions.filter((pos) => pos.symbol === symbol);
     return sameAssetPositions.length > 0 ? 0.8 : 0; // Assume high correlation with same symbol
+  }
+
+  /**
+   * Clean up old acknowledged alerts to prevent memory leaks
+   * Keeps only the last 100 acknowledged alerts and all unacknowledged ones
+   */
+  private cleanupOldAlerts(): void {
+    const maxAcknowledgedAlerts = 100;
+    const acknowledgedAlerts = this.alerts.filter((alert) => alert.acknowledged);
+    const unacknowledgedAlerts = this.alerts.filter((alert) => !alert.acknowledged);
+
+    // Keep all unacknowledged alerts and only the most recent acknowledged ones
+    if (acknowledgedAlerts.length > maxAcknowledgedAlerts) {
+      // Sort by timestamp descending and keep only the most recent
+      const recentAcknowledged = acknowledgedAlerts
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        .slice(0, maxAcknowledgedAlerts);
+
+      this.alerts = [...unacknowledgedAlerts, ...recentAcknowledged];
+    }
   }
 }

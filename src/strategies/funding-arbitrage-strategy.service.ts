@@ -19,10 +19,10 @@ export class FundingArbitrageStrategyService {
     parameters: {},
     isActive: true,
     minRateDifference: 0.0005, // 0.05%
-    maxPositionSize: 20, // USD
+    maxPositionSize: 10000, // USD - Fixed: was unreasonably low at 20 USD
     maxRiskPerTrade: 0.02, // 2% of portfolio
     targetExchanges: ['Binance', 'Bybit', 'OKX'],
-    excludedSymbols: ['BTCUSDT'], // Exclude if needed
+    excludedSymbols: [], // Fixed: BTCUSDT should not be excluded by default as it's a primary trading pair
     rebalanceInterval: 15 * 60 * 1000, // 15 minutes
     holdingPeriod: 8 * 60 * 60 * 1000, // 8 hours (1 funding period)
   };

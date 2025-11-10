@@ -597,10 +597,8 @@ export class AutoTradeScheduler {
   }
 
   private shouldEmergencyStop(): boolean {
-    return (
-      Math.abs(this.dailyPnL) > this.config.emergencyStop.maxDailyLoss ||
-      this.dailyPnL < -this.config.emergencyStop.maxDailyLoss
-    );
+    // Fixed: Redundant check removed - only need to check if loss exceeds threshold
+    return this.dailyPnL < -this.config.emergencyStop.maxDailyLoss;
   }
 
   private resetDailyPnLIfNewDay() {
