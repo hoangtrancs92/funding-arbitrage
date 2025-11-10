@@ -9,16 +9,73 @@ This is a NestJS-based bot for detecting and executing funding rate arbitrage op
 - **Risk Management**: Comprehensive risk controls and position management
 - **Strategy Engine**: Configurable trading strategies with performance tracking
 - **Monitoring & Alerts**: Real-time alerts and performance monitoring
+- **API Documentation**: Interactive Swagger/OpenAPI documentation
+- **Input Validation**: Comprehensive validation of all user inputs
 
 ## Description
 
 Advanced funding rate arbitrage bot built with [Nest](https://github.com/nestjs/nest) framework TypeScript.
 
+## Prerequisites
+
+- Node.js 18+ or higher
+- npm or yarn package manager
+- API keys from supported exchanges (Binance, Bybit, OKX)
+- Basic understanding of cryptocurrency futures trading
+
 ## Project setup
 
 ```bash
+# Install dependencies
 $ npm install
+
+# Copy environment configuration
+$ cp .env.example .env
+
+# Edit .env file with your API keys
+$ nano .env  # or use your preferred editor
 ```
+
+## Environment Configuration
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+
+# Binance API Configuration
+BINANCE_API_KEY=your_binance_api_key_here
+BINANCE_SECRET_KEY=your_binance_secret_key_here
+BINANCE_TESTNET=true
+
+# Bybit API Configuration
+BYBIT_API_KEY=your_bybit_api_key_here
+BYBIT_SECRET_KEY=your_bybit_secret_key_here
+BYBIT_TESTNET=true
+
+# OKX API Configuration (Optional - not fully implemented)
+OKX_API_KEY=your_okx_api_key_here
+OKX_SECRET_KEY=your_okx_secret_key_here
+OKX_PASSPHRASE=your_okx_passphrase_here
+
+# Trading Configuration
+DEFAULT_SYMBOLS=BTCUSDT,ETHUSDT,ADAUSDT,BNBUSDT,SOLUSDT
+MONITORING_INTERVAL=5
+MAX_CONCURRENT_TRADES=10
+
+# Risk Management
+MAX_DAILY_LOSS=1000
+MAX_PORTFOLIO_RISK=0.05
+MAX_LEVERAGE=10
+```
+
+**Important Security Notes:**
+- Never commit your `.env` file to version control
+- Use testnet API keys for development and testing
+- Ensure API keys have appropriate permissions (read + trade)
+- Consider using API key IP whitelisting on exchanges
 
 ## Compile and run the project
 
@@ -26,12 +83,22 @@ $ npm install
 # development
 $ npm run start
 
-# watch mode
+# watch mode (recommended for development)
 $ npm run start:dev
 
 # production mode
 $ npm run start:prod
 ```
+
+## API Documentation
+
+Once the application is running, access the interactive API documentation at:
+
+```
+http://localhost:3000/api
+```
+
+This provides a complete reference of all available endpoints with the ability to test them directly.
 
 ## Run tests
 

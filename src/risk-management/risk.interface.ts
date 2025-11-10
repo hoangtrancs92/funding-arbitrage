@@ -35,7 +35,13 @@ export interface PositionRisk {
 
 export interface RiskAlert {
   id: string;
-  type: 'LEVERAGE' | 'POSITION_SIZE' | 'CORRELATION' | 'DRAWDOWN' | 'VAR' | 'LIQUIDITY';
+  type:
+    | 'LEVERAGE'
+    | 'POSITION_SIZE'
+    | 'CORRELATION'
+    | 'DRAWDOWN'
+    | 'VAR'
+    | 'LIQUIDITY';
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   message: string;
   positions?: string[];

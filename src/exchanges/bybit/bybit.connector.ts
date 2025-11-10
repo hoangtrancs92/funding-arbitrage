@@ -1,10 +1,23 @@
-import { ExchangeConnector, FuturesContract, FundingRate, OrderBook, Balance, Position, OrderResult, PositionInfo } from '../exchange.interface';
+import {
+  ExchangeConnector,
+  FuturesContract,
+  FundingRate,
+  OrderBook,
+  Balance,
+  Position,
+  OrderResult,
+  PositionInfo,
+} from '../exchange.interface';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExchangeAuthUtils } from '../utils/auth.utils';
 import axios from 'axios';
 import { bybit } from 'ccxt';
-import { calculateCoinAmountFromMargin, formatPair, getCloseOrderParams } from 'src/common/helper';
+import {
+  calculateCoinAmountFromMargin,
+  formatPair,
+  getCloseOrderParams,
+} from 'src/common/helper';
 
 @Injectable()
 export class BybitConnector extends ExchangeConnector {
@@ -30,13 +43,19 @@ export class BybitConnector extends ExchangeConnector {
     this.exchange.loadTimeDifference();
 
     // Debug logging
-    this.logger.log(`🔑 Bybit API Key: ${this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'Not configured'}`);
-    this.logger.log(`🔐 Bybit Secret: ${this.secretKey ? '***configured***' : 'Not configured'}`);
+    this.logger.log(
+      `🔑 Bybit API Key: ${this.apiKey ? `${this.apiKey.substring(0, 8)}...` : 'Not configured'}`,
+    );
+    this.logger.log(
+      `🔐 Bybit Secret: ${this.secretKey ? '***configured***' : 'Not configured'}`,
+    );
   }
 
   async getFuturesContracts(): Promise<FuturesContract[]> {
     try {
-      const response = await fetch(`${this.baseUrl}/v5/market/instruments-info?category=linear`);
+      const response = await fetch(
+        `${this.baseUrl}/v5/market/instruments-info?category=linear`,
+      );
       const data = await response.json();
 
       return data.result.list.map((symbol: any) => ({
@@ -46,7 +65,7 @@ export class BybitConnector extends ExchangeConnector {
         contractSize: parseFloat(symbol.contractSize || '1'),
         tickSize: parseFloat(symbol.priceFilter?.tickSize || '0.01'),
         minOrderSize: parseFloat(symbol.lotSizeFilter?.minOrderQty || '0.001'),
-        status: symbol.status === 'Trading' ? 'TRADING' : 'SUSPENDED'
+        status: symbol.status === 'Trading' ? 'TRADING' : 'SUSPENDED',
       }));
     } catch (error) {
       this.logger.error('Failed to fetch futures contracts', error);
@@ -61,14 +80,18 @@ export class BybitConnector extends ExchangeConnector {
         const promises = symbols.map(async (symbol) => {
           const url = `${this.baseUrl}/v5/market/funding/history?category=linear&symbol=${symbol}&limit=1`;
 
-          this.logger.debug(`Fetching Bybit funding rate for ${symbol}: ${url}`);
+          this.logger.debug(
+            `Fetching Bybit funding rate for ${symbol}: ${url}`,
+          );
 
           const response = await fetch(url);
           const contentType = response.headers.get?.('content-type') || '';
 
           if (!contentType.includes('application/json')) {
             const text = await response.text();
-            this.logger.warn(`Non-JSON response from Bybit funding history for ${symbol}: ${url} -> ${text.slice(0, 300)}`);
+            this.logger.warn(
+              `Non-JSON response from Bybit funding history for ${symbol}: ${url} -> ${text.slice(0, 300)}`,
+            );
             return null;
           }
 
@@ -92,10 +115,12 @@ export class BybitConnector extends ExchangeConnector {
         });
 
         const results = await Promise.all(promises);
-        return results.filter(rate => rate !== null) as FundingRate[];
+        return results.filter((rate) => rate !== null) as FundingRate[];
       } else {
         // Get all tickers and extract funding rates
-        const response = await fetch(`${this.baseUrl}/v5/market/tickers?category=linear`);
+        const response = await fetch(
+          `${this.baseUrl}/v5/market/tickers?category=linear`,
+        );
         const data = await response.json();
         return data.result.list.map((ticker: any) => ({
           symbol: ticker.symbol,
@@ -112,14 +137,22 @@ export class BybitConnector extends ExchangeConnector {
 
   async getOrderBook(symbol: string, limit = 500): Promise<OrderBook> {
     try {
-      const response = await fetch(`${this.baseUrl}/v5/market/orderbook?category=linear&symbol=${symbol}&limit=${Math.min(limit, 500)}`);
+      const response = await fetch(
+        `${this.baseUrl}/v5/market/orderbook?category=linear&symbol=${symbol}&limit=${Math.min(limit, 500)}`,
+      );
       const data = await response.json();
 
       return {
         symbol,
-        bids: data.result.b.map(([price, qty]: [string, string]) => [parseFloat(price), parseFloat(qty)]),
-        asks: data.result.a.map(([price, qty]: [string, string]) => [parseFloat(price), parseFloat(qty)]),
-        timestamp: parseInt(data.result.ts)
+        bids: data.result.b.map(([price, qty]: [string, string]) => [
+          parseFloat(price),
+          parseFloat(qty),
+        ]),
+        asks: data.result.a.map(([price, qty]: [string, string]) => [
+          parseFloat(price),
+          parseFloat(qty),
+        ]),
+        timestamp: parseInt(data.result.ts),
       };
     } catch (error) {
       this.logger.error('Failed to fetch order book', error);
@@ -129,7 +162,9 @@ export class BybitConnector extends ExchangeConnector {
 
   async getMarkPrice(symbol: string): Promise<number> {
     try {
-      const response = await fetch(`${this.baseUrl}/v5/market/tickers?category=linear&symbol=${symbol}`);
+      const response = await fetch(
+        `${this.baseUrl}/v5/market/tickers?category=linear&symbol=${symbol}`,
+      );
       const data = await response.json();
       return parseFloat(data.result.list[0].markPrice);
     } catch (error) {
@@ -140,32 +175,42 @@ export class BybitConnector extends ExchangeConnector {
 
   async getBalances(): Promise<Balance[]> {
     // ✅ Validate credentials using utility
-    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
+    const validation = ExchangeAuthUtils.validateCredentials(
+      this.apiKey,
+      this.secretKey,
+    );
     if (!validation.isValid) {
       // Return mock data if credentials are invalid
-      this.logger.warn('Using mock balance data - API credentials not configured');
-      return [
-        { asset: 'USDT', free: 1000, locked: 0, total: 1000 },
-      ];
+      this.logger.warn(
+        'Using mock balance data - API credentials not configured',
+      );
+      return [{ asset: 'USDT', free: 1000, locked: 0, total: 1000 }];
     }
 
     try {
       const params = {
-        accountType: 'UNIFIED' // Bybit unified account
+        accountType: 'UNIFIED', // Bybit unified account
       };
 
       // Create signed query using ExchangeAuthUtils
-      const { query, signature, headers } = ExchangeAuthUtils.createBybitSignedQuery(this.apiKey, this.secretKey, params);
+      const { query, signature, headers } =
+        ExchangeAuthUtils.createBybitSignedQuery(
+          this.apiKey,
+          this.secretKey,
+          params,
+        );
 
       const response = await axios.get(
         `${this.baseUrl}/v5/account/wallet-balance?${query}`,
-        { headers }
+        { headers },
       );
 
       const responseData = response.data;
 
       if (responseData.retCode !== 0) {
-        throw new Error(`Bybit API Error ${responseData.retCode}: ${responseData.retMsg}`);
+        throw new Error(
+          `Bybit API Error ${responseData.retCode}: ${responseData.retMsg}`,
+        );
       }
 
       const accountInfo = responseData.result?.list?.[0];
@@ -176,17 +221,19 @@ export class BybitConnector extends ExchangeConnector {
 
       return accountInfo.coin.map((item: any) => ({
         asset: item.coin,
-        free: parseFloat(item.availableToWithdraw || '0'),  // Available to withdraw
-        locked: parseFloat(item.walletBalance || '0') - parseFloat(item.availableToWithdraw || '0'), // Locked
-        total: parseFloat(item.walletBalance || '0'),          // Total balance
+        free: parseFloat(item.availableToWithdraw || '0'), // Available to withdraw
+        locked:
+          parseFloat(item.walletBalance || '0') -
+          parseFloat(item.availableToWithdraw || '0'), // Locked
+        total: parseFloat(item.walletBalance || '0'), // Total balance
       }));
-
     } catch (error) {
-      this.logger.error('❌ Error fetching Bybit balances:', error.response?.data || error.message);
+      this.logger.error(
+        '❌ Error fetching Bybit balances:',
+        error.response?.data || error.message,
+      );
       // Return mock data on error
-      return [
-        { asset: 'USDT', free: 1000, locked: 0, total: 1000 },
-      ];
+      return [{ asset: 'USDT', free: 1000, locked: 0, total: 1000 }];
     }
   }
 
@@ -195,7 +242,7 @@ export class BybitConnector extends ExchangeConnector {
     side: 'BUY' | 'SELL',
     initialMargin: number,
     leverage?: number,
-    marginMode: 'cross' | 'isolated' = 'isolated'
+    marginMode: 'cross' | 'isolated' = 'isolated',
   ) {
     const exchange = new bybit({
       apiKey: this.apiKey,
@@ -214,8 +261,17 @@ export class BybitConnector extends ExchangeConnector {
 
     await exchange.setMarginMode(marginMode, symbol);
     const ticker = await exchange.fetchTicker(symbol);
-    const quantity = await calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
-    const result = await exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
+    const quantity = await calculateCoinAmountFromMargin(
+      initialMargin,
+      ticker.last,
+      leverage || 1,
+    );
+    const result = await exchange.createOrder(
+      symbol,
+      'market',
+      side.toLowerCase(),
+      quantity,
+    );
 
     return result;
   }
@@ -229,9 +285,16 @@ export class BybitConnector extends ExchangeConnector {
     }
 
     const { side, amount } = getCloseOrderParams(position);
-    const order = await this.exchange.createOrder(symbol, 'market', side, amount, undefined, {
-      reduceOnly: true,
-    });
+    const order = await this.exchange.createOrder(
+      symbol,
+      'market',
+      side,
+      amount,
+      undefined,
+      {
+        reduceOnly: true,
+      },
+    );
 
     return order;
   }
@@ -244,22 +307,34 @@ export class BybitConnector extends ExchangeConnector {
       // Chuyển đổi dữ liệu về định dạng PositionInfo
       return positions.map((p: any) => ({
         symbol: p.symbol,
-        positionAmt: parseFloat(p.info.positionAmt),    // Số lượng vị thế
-        entryPrice: parseFloat(p.info.entryPrice),      // Giá vào lệnh
+        positionAmt: parseFloat(p.info.positionAmt), // Số lượng vị thế
+        entryPrice: parseFloat(p.info.entryPrice), // Giá vào lệnh
         unrealizedPnl: parseFloat(p.info.unRealizedProfit), // Lợi nhuận chưa thực hiện
-        volume: parseFloat(p.info.notional),           // Giá trị vị thế
-        marginType: p.info.marginType,                 // Loại margin (isolated/cross)
-        USDValue: parseFloat(p.info.initialMargin),   // Số margin đã dùng
-        side: parseFloat(p.info.positionAmt) > 0 ? 'long' : (parseFloat(p.info.positionAmt) < 0 ? 'short' : 'none'),
+        volume: parseFloat(p.info.notional), // Giá trị vị thế
+        marginType: p.info.marginType, // Loại margin (isolated/cross)
+        USDValue: parseFloat(p.info.initialMargin), // Số margin đã dùng
+        side:
+          parseFloat(p.info.positionAmt) > 0
+            ? 'long'
+            : parseFloat(p.info.positionAmt) < 0
+              ? 'short'
+              : 'none',
       }));
     } catch (error) {
-      this.logger.error(`Failed to fetch positions for ${symbol}:`, error.message);
+      this.logger.error(
+        `Failed to fetch positions for ${symbol}:`,
+        error.message,
+      );
       return [];
     }
   }
 
   async getFundingHistory(symbol: string, limit = 1): Promise<any[]> {
-    const history = await this.exchange.fetchFundingHistory(symbol, undefined, limit);
+    const history = await this.exchange.fetchFundingHistory(
+      symbol,
+      undefined,
+      limit,
+    );
     return history;
   }
 }

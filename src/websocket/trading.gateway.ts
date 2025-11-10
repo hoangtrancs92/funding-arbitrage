@@ -17,7 +17,9 @@ import { ArbitrageDetector } from '../arbitrage/arbitrage-detector.service';
     origin: '*',
   },
 })
-export class TradingGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class TradingGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -32,7 +34,7 @@ export class TradingGateway implements OnGatewayConnection, OnGatewayDisconnect 
   handleConnection(client: Socket) {
     this.clients.add(client);
     this.logger.log(`Client connected: ${client.id}`);
-    
+
     // Send initial data
     this.sendInitialData(client);
   }
@@ -46,13 +48,18 @@ export class TradingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     try {
       // Send current funding rates
       const fundingRates = await this.fundingRateService.collectFundingRates([
-        'BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'SOLUSDT', 'XRPUSDT'
+        'BTCUSDT',
+        'ETHUSDT',
+        'ADAUSDT',
+        'SOLUSDT',
+        'XRPUSDT',
       ]);
-      
+
       client.emit('funding-rates', Array.from(fundingRates.entries()));
 
       // Send current opportunities
-      const opportunities = this.arbitrageDetector.detectOpportunities(fundingRates);
+      const opportunities =
+        this.arbitrageDetector.detectOpportunities(fundingRates);
       client.emit('opportunities', opportunities);
     } catch (error) {
       this.logger.error('Error sending initial data', error);
@@ -62,7 +69,8 @@ export class TradingGateway implements OnGatewayConnection, OnGatewayDisconnect 
   // Method để broadcast funding rates update
   async broadcastFundingRatesUpdate(symbols: string[]) {
     try {
-      const fundingRates = await this.fundingRateService.collectFundingRates(symbols);
+      const fundingRates =
+        await this.fundingRateService.collectFundingRates(symbols);
       this.server.emit('funding-rates', Array.from(fundingRates.entries()));
     } catch (error) {
       this.logger.error('Error broadcasting funding rates', error);
@@ -72,8 +80,10 @@ export class TradingGateway implements OnGatewayConnection, OnGatewayDisconnect 
   // Method để broadcast opportunities update
   async broadcastOpportunitiesUpdate(symbols: string[]) {
     try {
-      const fundingRates = await this.fundingRateService.collectFundingRates(symbols);
-      const opportunities = this.arbitrageDetector.detectOpportunities(fundingRates);
+      const fundingRates =
+        await this.fundingRateService.collectFundingRates(symbols);
+      const opportunities =
+        this.arbitrageDetector.detectOpportunities(fundingRates);
       this.server.emit('opportunities', opportunities);
     } catch (error) {
       this.logger.error('Error broadcasting opportunities', error);
@@ -101,10 +111,10 @@ export class TradingGateway implements OnGatewayConnection, OnGatewayDisconnect 
     @ConnectedSocket() client: Socket,
   ) {
     this.logger.log(`Client ${client.id} subscribed to ${symbol}`);
-    
+
     // Add client to symbol-specific room
     client.join(`symbol:${symbol}`);
-    
+
     // Send current data for this symbol
     this.sendSymbolData(client, symbol);
   }
@@ -120,14 +130,17 @@ export class TradingGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   private async sendSymbolData(client: Socket, symbol: string) {
     try {
-      const fundingRates = await this.fundingRateService.collectFundingRates([symbol]);
-      const opportunities = this.arbitrageDetector.detectOpportunities(fundingRates);
-      
+      const fundingRates = await this.fundingRateService.collectFundingRates([
+        symbol,
+      ]);
+      const opportunities =
+        this.arbitrageDetector.detectOpportunities(fundingRates);
+
       client.emit('symbol-data', {
         symbol,
         fundingRates: Array.from(fundingRates.entries()),
         opportunities,
-        timestamp: new Date()
+        timestamp: new Date(),
       });
     } catch (error) {
       this.logger.error(`Error sending symbol data for ${symbol}`, error);

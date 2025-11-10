@@ -20,33 +20,33 @@ export class AutoTradeController {
           name: 'Opposite Sign Funding',
           activePositions: 0,
           riskLevel: 'MEDIUM',
-          description: 'Funding rates có dấu ngược nhau giữa các sàn'
+          description: 'Funding rates có dấu ngược nhau giữa các sàn',
         },
         {
           name: 'High Rate Difference',
           activePositions: 0,
           riskLevel: 'LOW',
-          description: 'Chênh lệch funding rate ≥ 0.25% cùng dấu'
+          description: 'Chênh lệch funding rate ≥ 0.25% cùng dấu',
         },
         {
           name: 'Price Gap Arbitrage',
           activePositions: 0,
           riskLevel: 'HIGH',
-          description: 'Chênh lệch giá với cùng hướng funding'
+          description: 'Chênh lệch giá với cùng hướng funding',
         },
         {
           name: 'Timing Desync',
           activePositions: 0,
           riskLevel: 'MEDIUM',
-          description: 'Lệch thời gian funding giữa các sàn'
+          description: 'Lệch thời gian funding giữa các sàn',
         },
         {
           name: 'High Same Direction',
           activePositions: 0,
           riskLevel: 'LOW',
-          description: 'Funding rate cao cùng chiều'
-        }
-      ]
+          description: 'Funding rate cao cùng chiều',
+        },
+      ],
     };
   }
 
@@ -54,18 +54,20 @@ export class AutoTradeController {
   async getPositions() {
     // Trả về optimized opportunities thay vì raw positions
     const bestOpportunities = this.autoTradeScheduler.getBestOpportunities();
-    
+
     // Lấy thông tin funding time cho từng symbol/exchange
     const fundingData = await this.fundingRateService.collectFundingRates();
-    
+
     return {
-      positions: bestOpportunities.map(opportunity => {
+      positions: bestOpportunities.map((opportunity) => {
         // Tìm funding time cho long và short exchange
         const longRates = fundingData.get(opportunity.longExchange) || [];
         const shortRates = fundingData.get(opportunity.shortExchange) || [];
 
-        const longRate = longRates.find(r => r.symbol === opportunity.symbol);
-        const shortRate = shortRates.find(r => r.symbol === opportunity.symbol);
+        const longRate = longRates.find((r) => r.symbol === opportunity.symbol);
+        const shortRate = shortRates.find(
+          (r) => r.symbol === opportunity.symbol,
+        );
         console.log('longRate.nextFundingTime:', longRate?.nextFundingTime);
         return {
           symbol: opportunity.symbol,
@@ -73,17 +75,21 @@ export class AutoTradeController {
           longExchange: opportunity.longExchange,
           shortExchange: opportunity.shortExchange,
           expectedProfit: opportunity.expectedProfit,
-          longFundingTime: longRate?.nextFundingTime ? new Date(Number(longRate.nextFundingTime)) : null,
-          shortFundingTime: shortRate?.nextFundingTime ? new Date(Number(shortRate.nextFundingTime)) : null,
+          longFundingTime: longRate?.nextFundingTime
+            ? new Date(Number(longRate.nextFundingTime))
+            : null,
+          shortFundingTime: shortRate?.nextFundingTime
+            ? new Date(Number(shortRate.nextFundingTime))
+            : null,
           longFundingRate: longRate?.fundingRate || 0,
           shortFundingRate: shortRate?.fundingRate || 0,
-          timestamp: opportunity.timestamp
+          timestamp: opportunity.timestamp,
         };
       }),
       total: bestOpportunities.length,
       lastUpdated: new Date(),
       fundingRates: Object.fromEntries(fundingData), // Include full funding data
-      statistics: this.autoTradeScheduler.getOpportunityStatistics()
+      statistics: this.autoTradeScheduler.getOpportunityStatistics(),
     };
   }
 
@@ -93,7 +99,7 @@ export class AutoTradeController {
     this.autoTradeScheduler.enable();
     return {
       message: `Auto trading started with ${intervalMinutes} minute interval`,
-      enabled: true
+      enabled: true,
     };
   }
 
@@ -102,7 +108,7 @@ export class AutoTradeController {
     this.autoTradeScheduler.disable();
     return {
       message: 'Auto trading stopped',
-      enabled: false
+      enabled: false,
     };
   }
 
@@ -111,12 +117,12 @@ export class AutoTradeController {
     try {
       await this.autoTradeScheduler.scanForOpportunities();
       return {
-        message: 'Force scan completed successfully'
+        message: 'Force scan completed successfully',
       };
     } catch (error) {
       return {
         message: 'Force scan failed: ' + error.message,
-        error: error.message
+        error: error.message,
       };
     }
   }
