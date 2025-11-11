@@ -176,8 +176,8 @@ export class BybitConnector extends ExchangeConnector {
 
       return accountInfo.coin.map((item: any) => ({
         asset: item.coin,
-        free: parseFloat(item.availableToWithdraw || '0'),  // Available to withdraw
-        locked: parseFloat(item.walletBalance || '0') - parseFloat(item.availableToWithdraw || '0'), // Locked
+        free: parseFloat(item.walletBalance || '0') - parseFloat(item.availableToWithdraw || '0'),  // Available to withdraw
+        locked:  parseFloat(item.availableToWithdraw || '0'), // Locked
         total: parseFloat(item.walletBalance || '0'),          // Total balance
       }));
 
@@ -239,10 +239,8 @@ export class BybitConnector extends ExchangeConnector {
 
   async getPosition(symbol: string): Promise<PositionInfo[]> {
     try {
-      // Lấy tất cả các vị thế từ Binance Futures
+      symbol = `${formatPair(symbol)}:USDT`;
       const positions = await this.exchange.fetchPositions([symbol]);
-
-      // Chuyển đổi dữ liệu về định dạng PositionInfo
       return positions.map((p: any) => ({
         symbol: p.symbol,
         positionAmt: parseFloat(p.info.positionAmt),    // Số lượng vị thế
@@ -260,6 +258,7 @@ export class BybitConnector extends ExchangeConnector {
   }
 
   async getFundingHistory(symbol: string, limit = 1): Promise<any[]> {
+    symbol = `${formatPair(symbol)}:USDT`;
     const history = await this.exchange.fetchFundingHistory(symbol, undefined, limit);
     return history;
   }

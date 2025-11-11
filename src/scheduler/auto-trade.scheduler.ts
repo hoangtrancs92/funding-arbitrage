@@ -7,11 +7,13 @@ import { TradingGateway } from '../websocket/trading.gateway';
 import { OpportunityFilter, SimpleOpportunity } from './opportunity-filter';
 import { ProfitCalculator } from './profit-calculator';
 import { BinanceConnector } from '../exchanges/binance/binance.connector';
+import { BybitConnector } from 'src/exchanges/bybit/bybit.connector';
+
 
 @Injectable()
 export class AutoTradeScheduler {
   private readonly logger = new Logger(AutoTradeScheduler.name);
-
+  private isScanning = false; // 
   private config: AutoTradeConfig = {
     enabled: true,
     checkInterval: 5, // 5 minutes
@@ -83,6 +85,7 @@ export class AutoTradeScheduler {
     private readonly fundingRateService: FundingRateService,
     private readonly riskManager: RiskManager,
     private readonly binanceConnector: BinanceConnector,
+    private readonly bybitConnector: BybitConnector,
     @Inject(forwardRef(() => TradingGateway))
     private readonly tradingGateway: TradingGateway,
   ) { }
@@ -126,10 +129,10 @@ export class AutoTradeScheduler {
   // Chạy mỗi 10 giây để quét cơ hội
   @Cron(CronExpression.EVERY_10_SECONDS)
   async scanForOpportunities() {
-    if (!this.config.enabled) {
+    if (this.isScanning) {
       return;
     }
-
+    this.isScanning = true;
     this.logger.log('🔍 Scanning for funding arbitrage opportunities...');
 
     try {
@@ -158,12 +161,34 @@ export class AutoTradeScheduler {
 
       // Lọc opportunities (loại bỏ duplicate, chọn tốt nhất theo profit)
       const bestOpportunities = OpportunityFilter.getTopOpportunities(this.rawOpportunities, 5);
-
       // Broadcast optimized opportunities
       this.tradingGateway?.broadcastOpportunitiesUpdate(Array.from(fundingRates.keys()));
+      const balance = await this.getBalance();
 
       // Execute trades cho top opportunities
-      await this.executeTopOpportunities(bestOpportunities);
+      if(balance > 2) {
+        const result = await this.executeTopOpportunities(bestOpportunities, balance);
+        if (result.success) {
+          while (true) {
+            const isReciveFunding = await this.binanceConnector.getFundingHistory(result.symbol, 1);
+            if (isReciveFunding.length > 0) {
+              const dateTimeFunding = new Date(isReciveFunding[0].datetime).getTime();
+              if (dateTimeFunding >= result.longNextFundingTime.getTime() || dateTimeFunding >= result.shortNextFundingTime.getTime()) {
+                console.log('✅ Đã nhận funding, đóng vị thế cho cặp', result.symbol);
+                await Promise.all([
+                  this.binanceConnector.closePosition(result.symbol),
+                  this.bybitConnector.closePosition(result.symbol)
+                ]);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+
+      this.isScanning = false;
+
       // Quản lý các position đang mở
       await this.manageActivePositions();
 
@@ -366,14 +391,10 @@ export class AutoTradeScheduler {
   /**
    * Execute trades cho top opportunities (chỉ lấy tốt nhất, tránh duplicate)
    */
-  private async executeTopOpportunities(bestOpportunities: SimpleOpportunity[]) {
+  private async executeTopOpportunities(bestOpportunities: SimpleOpportunity[], balance: number): Promise<any> {
     const fundingData = await this.fundingRateService.collectFundingRates();
 
     for (const opportunity of bestOpportunities) {
-      // check exist positionn in market ?
-      // const checkPostion = await this.binanceConnector.getPosition(opportunity.symbol);
-      // console.log(checkPostion);
-      // Tìm funding time cho long và short exchange
       const longRates = fundingData.get(opportunity.longExchange) || [];
       const shortRates = fundingData.get(opportunity.shortExchange) || [];
 
@@ -383,90 +404,70 @@ export class AutoTradeScheduler {
         opportunity['longNextFundingTime'] = longRate?.nextFundingTime ? new Date(Number(longRate.nextFundingTime)) : null;
         opportunity['shortNextFundingTime'] = shortRate?.nextFundingTime ? new Date(Number(shortRate.nextFundingTime)) : null;
       }
-
-      // Execute trade
-      await this.executeOptimizedTrade(opportunity);
     }
+    const result = await this.executeOptimizedTrade(this.findBestEntry(bestOpportunities), balance);
+    return result
   }
 
-  /**
-   * Execute optimized trade
-   */
-  private async executeOptimizedTrade(opportunity: SimpleOpportunity) {
+  private async executeOptimizedTrade(opportunity: SimpleOpportunity, balance): Promise<any> {
     try {
-      // this.logger.log(
-      //   `🚀 Executing ${opportunity.scenarioName} for ${opportunity.symbol}: ` +
-      //   `${opportunity.longExchange} (${(opportunity.longFundingRate * 100).toFixed(4)}%) vs ` +
-      //   `${opportunity.shortExchange} (${(opportunity.shortFundingRate * 100).toFixed(4)}%) ` +
-      //   `Expected: ${(opportunity.expectedProfit * 100).toFixed(4)}%`
-      // );
+      if (opportunity == null) {
+        return { success: false, symbol: '' };
+      }
+      const checkPostionBinance = await this.binanceConnector.getPosition(opportunity.symbol);
+      const checkPositionBybit = await this.bybitConnector.getPosition(opportunity.symbol);
 
-      const tradeExecution: TradeExecution = {
-        id: `${opportunity.scenarioId}_${opportunity.symbol}_${Date.now()}`,
-        scenarioId: opportunity.scenarioId,
-        symbol: opportunity.symbol,
-        longExchange: opportunity.longExchange,
-        shortExchange: opportunity.shortExchange,
-        longFundingRate: opportunity.longFundingRate,
-        shortFundingRate: opportunity.shortFundingRate,
-        expectedProfit: opportunity.expectedProfit,
-        actualProfit: 0,
-        status: 'ACTIVE',
-        executedAt: new Date(),
-        closeAt: undefined
-      };
+      const binanceOpen = checkPostionBinance.length > 0;
+      const bybitOpen = checkPositionBybit[0] && !isNaN(checkPositionBybit[0].positionAmt) && checkPositionBybit[0].positionAmt !== 0;
+
+      if (binanceOpen || bybitOpen) {
+        this.logger.log(`⚠️ Existing position detected for ${opportunity.symbol}. Skipping trade execution.`);
+        return { success: false, symbol: opportunity.symbol };
+      }
 
 
-      // Thêm vào danh sách active positions
-      this.activePositions.push(tradeExecution);
+      return new Promise((resolve) => {
+        const startWatcher = () => {
+          if (!this.isFundingNear(opportunity, 20)) {
+            return resolve({ success: false, symbol: opportunity.symbol });
+          }
 
-      // Broadcast realtime update
-      this.broadcastProfitUpdate({
-        symbol: opportunity.symbol,
-        expectedProfit: opportunity.expectedProfit,
-        action: 'OPENED'
+          const intervalId = setInterval(async () => {
+            const remainingSec = this.secondsToFunding(opportunity.longNextFundingTime, new Date());
+            this.logger.log(`⏱ ${opportunity.symbol} funding in ${remainingSec.toFixed(1)}s`);
+
+            if (remainingSec <= 0) {
+              clearInterval(intervalId);
+              this.logger.log(`⏹ Funding time passed for ${opportunity.symbol}, stopping watcher`);
+              return resolve({ success: true, symbol: opportunity.symbol });
+            }
+
+            if (remainingSec <= 5) {
+              clearInterval(intervalId);
+              this.logger.log(`🚀 Executing trade for ${opportunity.symbol} at funding time`);
+              if (opportunity.longExchange == 'Binance' && opportunity.shortExchange == 'Bybit') {
+                this.binanceConnector.placeOrder(opportunity.symbol, 'BUY', balance, 10, 'isolated');
+                this.bybitConnector.placeOrder(opportunity.symbol, 'SELL', balance, 10, 'isolated');
+              } else if (opportunity.longExchange == 'Bybit' && opportunity.shortExchange == 'Binance') {
+                this.binanceConnector.placeOrder(opportunity.symbol, 'SELL', balance, 10, 'isolated');
+                this.bybitConnector.placeOrder(opportunity.symbol, 'BUY', balance, 10, 'isolated');
+              }
+
+              return resolve({
+                success: true,
+                symbol: opportunity.symbol,
+                longNextFundingTime: opportunity.longNextFundingTime,
+                shortNextFundingTime: opportunity.shortNextFundingTime
+              });
+            }
+          }, 1000);
+        };
+
+        startWatcher();
       });
-
-      this.logger.log(`✅ Trade executed successfully for ${opportunity.symbol}`);
-
     } catch (error) {
       this.logger.error(`❌ Failed to execute trade for ${opportunity.symbol}:`, error);
-    }
-  }
-
-  private async executeArbitrageTrade(
-    symbol: string,
-    exchange1: string,
-    exchange2: string,
-    rate1: any,
-    rate2: any,
-    expectedProfit: number
-  ) {
-    try {
-      // Tạo trade execution record
-      const execution: TradeExecution = {
-        id: `${symbol}_${Date.now()}`,
-        scenarioId: 2,
-        symbol,
-        longExchange: rate1.fundingRate < rate2.fundingRate ? exchange1 : exchange2,
-        shortExchange: rate1.fundingRate < rate2.fundingRate ? exchange2 : exchange1,
-        longFundingRate: rate1.fundingRate,
-        shortFundingRate: rate2.fundingRate,
-        expectedProfit,
-        actualProfit: 0,
-        executedAt: new Date(),
-        status: 'OPENING'
-      };
-
-      // TODO: Implement actual order placement
-      // const longOrder = await this.placeOrder(execution.longExchange, symbol, 'BUY', positionSize);
-      // const shortOrder = await this.placeOrder(execution.shortExchange, symbol, 'SELL', positionSize);
-
-      execution.status = 'ACTIVE';
-      this.activePositions.push(execution);
-
-
-    } catch (error) {
+      return { success: false, symbol: opportunity.symbol };
     }
   }
 
@@ -645,6 +646,52 @@ export class AutoTradeScheduler {
       this.intervalId = undefined;
       this.config.enabled = false;
       this.logger.log('🛑 Auto trading stopped');
+    }
+  }
+
+  private findBestEntry(opportunities) {
+    const filtered = opportunities.filter(o => {
+      const sameFundingTime =
+        o.longNextFundingTime &&
+        o.shortNextFundingTime &&
+        new Date(o.longNextFundingTime).getTime() === new Date(o.shortNextFundingTime).getTime();
+      return o.expectedProfit >= 0.004 && sameFundingTime;
+    });
+
+    if (filtered.length === 0) return null;
+
+    filtered.sort((a, b) => {
+      const timeA = new Date(a.longNextFundingTime!).getTime();
+      const timeB = new Date(b.longNextFundingTime!).getTime();
+
+      if (timeA !== timeB) return timeA - timeB;
+      return b.expectedProfit - a.expectedProfit;
+    });
+
+    return filtered[0];
+  }
+
+  isFundingNear(opportunity, thresholdSeconds = 15): boolean {
+    const now = Date.now();
+    const fundingTime = opportunity.longNextFundingTime.getTime(); // ms
+
+    const diffSeconds = (fundingTime - now) / 1000;
+    return diffSeconds <= thresholdSeconds && diffSeconds > 0;
+  }
+
+  secondsToFunding(longNextFundingTime: string | Date, timestamp: string | Date): number {
+    const fundingTime = new Date(longNextFundingTime).getTime();
+    const ts = new Date(timestamp).getTime();
+    return (fundingTime - ts) / 1000;
+  }
+
+  async getBalance() {
+    const bnbBalance = await this.binanceConnector.getBalances();
+    const bybBalance = await this.bybitConnector.getBalances();
+    if (bnbBalance[0].free >= bybBalance[0].free) {
+      return bybBalance[0].free - 1;
+    } else {
+      return bnbBalance[0].free - 1;
     }
   }
 }

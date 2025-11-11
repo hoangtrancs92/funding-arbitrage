@@ -1,0 +1,67 @@
+[
+  {
+    "symbol": "CVCUSDT",
+    "scenarioId": 2,
+    "scenarioName": "Funding lệch biên độ",
+    "longExchange": "Bybit",
+    "shortExchange": "Binance",
+    "longFundingRate": -0.025,
+    "shortFundingRate": -0.01318438,
+    "expectedProfit": 0.01181562,
+    "timestamp": "2025-11-11T13:05:40.352Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T16:00:00.000Z"
+  },
+  {
+    "symbol": "PARTIUSDT",
+    "scenarioId": 2,
+    "scenarioName": "Funding lệch biên độ",
+    "longExchange": "Bybit",
+    "shortExchange": "Binance",
+    "longFundingRate": -0.00792245,
+    "shortFundingRate": -0.00276459,
+    "expectedProfit": 0.005157859999999999,
+    "timestamp": "2025-11-11T13:05:40.353Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T16:00:00.000Z"
+  },
+  {
+    "symbol": "MTLUSDT",
+    "scenarioId": 2,
+    "scenarioName": "Funding lệch biên độ",
+    "longExchange": "Binance",
+    "shortExchange": "Bybit",
+    "longFundingRate": -0.00354078,
+    "shortFundingRate": -0.00086784,
+    "expectedProfit": 0.00267294,
+    "timestamp": "2025-11-11T13:05:40.351Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T16:00:00.000Z"
+  },
+  {
+    "symbol": "KERNELUSDT",
+    "scenarioId": 2,
+    "scenarioName": "Funding lệch biên độ",
+    "longExchange": "Bybit",
+    "shortExchange": "Binance",
+    "longFundingRate": -0.00561038,
+    "shortFundingRate": -0.00294603,
+    "expectedProfit": 0.00266435,
+    "timestamp": "2025-11-11T13:05:40.351Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T16:00:00.000Z"
+  },
+  {
+    "symbol": "TREEUSDT",
+    "scenarioId": 1,
+    "scenarioName": "Funding trái dấu",
+    "longExchange": "Binance",
+    "shortExchange": "Bybit",
+    "longFundingRate": -0.00199974,
+    "shortFundingRate": 0.0000125,
+    "expectedProfit": 0.0020122399999999998,
+    "timestamp": "2025-11-11T13:05:40.347Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T14:00:00.000Z"
+  }
+]

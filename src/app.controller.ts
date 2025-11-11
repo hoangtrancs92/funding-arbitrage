@@ -3,6 +3,7 @@ import { AppService } from './app.service';
 import { FundingRateService } from './data/funding-rate.service';
 import { BinanceConnector } from './exchanges/binance/binance.connector';
 import { BybitConnector } from './exchanges/bybit/bybit.connector';
+import { MexcConnector } from './exchanges/mexc/mexc.connector';
 
 @Controller()
 export class AppController {
@@ -13,6 +14,7 @@ export class AppController {
     private readonly fundingRateService: FundingRateService,
     private readonly binanceConnector: BinanceConnector,
     private readonly bybitConnector: BybitConnector,
+    private readonly mexcConnector: MexcConnector,
   ) { }
 
   @Get()
@@ -295,6 +297,23 @@ export class AppController {
         success: true,
         binanceClose,
         bybitClose
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Get('test/mexc/getFuturesContracts')
+  async testMexcGetFuturesContracts() {
+    try {
+      const markets = await this.mexcConnector.getFuturesContracts();
+      return {
+        success: true,
+        data: markets,
+        message: `Retrieved ${markets.length} futures contracts from MEXC`
       };
     } catch (error) {
       return {

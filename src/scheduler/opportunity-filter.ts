@@ -6,6 +6,8 @@ export interface SimpleOpportunity {
   shortExchange: string;
   longFundingRate: number;
   shortFundingRate: number;
+  longNextFundingTime?: any;
+  shortNextFundingTime?: any;
   expectedProfit: number;
   timestamp: Date;
 }

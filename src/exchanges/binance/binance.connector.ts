@@ -126,11 +126,13 @@ export class BinanceConnector extends ExchangeConnector {
 
       const balances = res.data;
 
-      return balances.map((item: any) => ({
+      return balances
+      .filter((item: any) => item.asset === 'USDT')
+      .map((item: any) => ({
         asset: item.asset,
-        free: parseFloat(item.availableBalance),  // Available để trade
+        free: parseFloat(item.availableBalance),  // Số dư khả dụng
         locked: parseFloat(item.balance) - parseFloat(item.availableBalance), // Đang dùng
-        total: parseFloat(item.balance),          // Tổng tài sản futures
+        total: parseFloat(item.balance),          // Tổng tài sản
       }));
 
     } catch (error) {
@@ -161,8 +163,9 @@ export class BinanceConnector extends ExchangeConnector {
     await exchange.setMarginMode(marginMode, symbol);
     const ticker = await exchange.fetchTicker(symbol);
 
-    const quantity = await calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
+    const quantity = calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
     const result = await exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
+    // Cần thêm await xử lý createOrder tạo TP/SL nếu cần. 
 
     return result;
   }
