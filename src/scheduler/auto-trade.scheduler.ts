@@ -655,7 +655,7 @@ export class AutoTradeScheduler {
         o.longNextFundingTime &&
         o.shortNextFundingTime &&
         new Date(o.longNextFundingTime).getTime() === new Date(o.shortNextFundingTime).getTime();
-      return o.expectedProfit >= 0.004 && sameFundingTime;
+      return o.expectedProfit >= 0.0045 && sameFundingTime;
     });
 
     if (filtered.length === 0) return null;
@@ -689,9 +689,9 @@ export class AutoTradeScheduler {
     const bnbBalance = await this.binanceConnector.getBalances();
     const bybBalance = await this.bybitConnector.getBalances();
     if (bnbBalance[0].free >= bybBalance[0].free) {
-      return bybBalance[0].free - 1;
+      return Math.floor(bybBalance[0].free - 1);
     } else {
-      return bnbBalance[0].free - 1;
+      return Math.floor(bnbBalance[0].free - 1);
     }
   }
 }
