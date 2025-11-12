@@ -82,7 +82,7 @@ export abstract class ExchangeConnector {
   abstract getMarkPrice(symbol: string): Promise<number>;
   
   // Account Methods
-  abstract getBalances(): Promise<Balance[]>;
+  abstract getBalances(): Promise<Balance>;
   abstract closePosition(symbol: string, orderId: string): Promise<boolean>;
   abstract getPosition(symbol: string): Promise<PositionInfo[]>;
   abstract getFundingHistory(symbol: string, limit?: number): Promise<any[]>;

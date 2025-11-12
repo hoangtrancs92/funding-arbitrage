@@ -37,7 +37,7 @@ export class BinanceConnector extends ExchangeConnector {
   async getFuturesContracts(): Promise<FuturesContract[]> {
     try {
       // Implementation for Binance futures contracts
-      const response = await fetch(`${this.baseUrl}/fapi/v1/exchangeInfo`);
+      const response = await this.exchange.loadMarkets();
       const data = await response.json();
 
       return data.symbols.map((symbol: any) => ({
@@ -107,7 +107,7 @@ export class BinanceConnector extends ExchangeConnector {
     }
   }
 
-  async getBalances(): Promise<Balance[]> {
+  async getBalances(): Promise<Balance> {
     // ✅ Validate credentials using utility
     const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
     if (!validation.isValid) {
@@ -115,29 +115,15 @@ export class BinanceConnector extends ExchangeConnector {
     }
 
     try {
-      // Sử dụng ExchangeAuthUtils để tạo signed query
-      const { fullQuery } = ExchangeAuthUtils.createBinanceSignedQuery(this.secretKey);
-      const headers = ExchangeAuthUtils.createAuthHeaders(this.apiKey, undefined, undefined, 'binance');
+      const balanceData = await this.exchange.fetchBalance(
+        { type: 'future' }
+      )
 
-      const res = await axios.get(
-        `https://fapi.binance.com/fapi/v2/balance?${fullQuery}`,
-        { headers }
-      );
-
-      const balances = res.data;
-
-      return balances
-      .filter((item: any) => item.asset === 'USDT')
-      .map((item: any) => ({
-        asset: item.asset,
-        free: parseFloat(item.availableBalance),  // Số dư khả dụng
-        locked: parseFloat(item.balance) - parseFloat(item.availableBalance), // Đang dùng
-        total: parseFloat(item.balance),          // Tổng tài sản
-      }));
+      return balanceData['USDT'];
 
     } catch (error) {
       this.logger.error('❌ Error fetching Binance Futures balances:', error.response?.data || error.message);
-      return [];
+      return Promise.reject(error);
     }
   }
 

@@ -138,55 +138,17 @@ export class BybitConnector extends ExchangeConnector {
     }
   }
 
-  async getBalances(): Promise<Balance[]> {
-    // ✅ Validate credentials using utility
-    const validation = ExchangeAuthUtils.validateCredentials(this.apiKey, this.secretKey);
-    if (!validation.isValid) {
-      // Return mock data if credentials are invalid
-      this.logger.warn('Using mock balance data - API credentials not configured');
-      return [
-        { asset: 'USDT', free: 1000, locked: 0, total: 1000 },
-      ];
-    }
-
+  async getBalances(): Promise<Balance> {
     try {
-      const params = {
-        accountType: 'UNIFIED' // Bybit unified account
-      };
+      const balanceData = await this.exchange.fetchBalance(
+        { type: 'future' }
+      )
 
-      // Create signed query using ExchangeAuthUtils
-      const { query, signature, headers } = ExchangeAuthUtils.createBybitSignedQuery(this.apiKey, this.secretKey, params);
-
-      const response = await axios.get(
-        `${this.baseUrl}/v5/account/wallet-balance?${query}`,
-        { headers }
-      );
-
-      const responseData = response.data;
-
-      if (responseData.retCode !== 0) {
-        throw new Error(`Bybit API Error ${responseData.retCode}: ${responseData.retMsg}`);
-      }
-
-      const accountInfo = responseData.result?.list?.[0];
-      if (!accountInfo || !accountInfo.coin) {
-        this.logger.warn('No balance data returned from Bybit');
-        return [];
-      }
-
-      return accountInfo.coin.map((item: any) => ({
-        asset: item.coin,
-        free: parseFloat(item.walletBalance || '0') - parseFloat(item.availableToWithdraw || '0'),  // Available to withdraw
-        locked:  parseFloat(item.availableToWithdraw || '0'), // Locked
-        total: parseFloat(item.walletBalance || '0'),          // Total balance
-      }));
-
+      return balanceData['USDT'];
     } catch (error) {
       this.logger.error('❌ Error fetching Bybit balances:', error.response?.data || error.message);
       // Return mock data on error
-      return [
-        { asset: 'USDT', free: 1000, locked: 0, total: 1000 },
-      ];
+      return Promise.reject(error);
     }
   }
 

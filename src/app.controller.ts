@@ -70,7 +70,6 @@ export class AppController {
       return {
         success: true,
         data: balances,
-        message: `Retrieved ${balances.length} balance entries from Binance`
       };
     } catch (error) {
       return {
@@ -160,7 +159,6 @@ export class AppController {
       return {
         success: true,
         data: balances,
-        message: `Retrieved ${balances.length} balance entries from Bybit`
       };
     } catch (error) {
       return {
