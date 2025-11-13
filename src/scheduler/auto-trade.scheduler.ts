@@ -169,9 +169,7 @@ export class AutoTradeScheduler {
       if(balance > 2) {
         const result = await this.executeTopOpportunities(bestOpportunities, balance);
         if (result.success) {
-          await this.sleep(7000);
-          await this.binanceConnector.closePosition(result.symbol),
-          await this.bybitConnector.closePosition(result.symbol)
+          this.isScanning = false;
           sendTelegramMessage(
             `Hoang Trader \n
             💰 Funding received for ${result.symbol}. Closing positions...`
@@ -180,7 +178,6 @@ export class AutoTradeScheduler {
       }
 
 
-      this.isScanning = false;
 
       // Broadcast bot status và positions update
       this.broadcastBotStatus();
@@ -379,7 +376,8 @@ export class AutoTradeScheduler {
         opportunity['shortNextFundingTime'] = shortRate?.nextFundingTime ? new Date(Number(shortRate.nextFundingTime)) : null;
       }
     }
-    const bestPosition = this.findBestEntry(bestOpportunities);
+    // const bestPosition = this.findBestEntry(bestOpportunities);
+    const bestPosition = this.findBestEntryBybit(bestOpportunities);
     console.log('Best Position to Execute:', bestPosition);
     const result = await this.executeOptimizedTrade(bestPosition, balance);
     return result
@@ -404,17 +402,9 @@ export class AutoTradeScheduler {
       const bybitSetting = await this.bybitConnector.setUpBeforeRuns(
         opportunity.symbol,
         balance,
-        5,
+        3,
         'isolated'
       );
-
-      // const binanceSetting = await this.binanceConnector.setUpBeforeRuns(
-      //   opportunity.symbol,
-      //   balance,
-      //   5,
-      //   'isolated'
-      // );
-
 
       return new Promise((resolve) => {
         const startWatcher = () => {
@@ -432,55 +422,16 @@ export class AutoTradeScheduler {
               return resolve({ success: true, symbol: opportunity.symbol });
             }
 
-            if (remainingSec <= 2) {
+            if (remainingSec <= 1) {
               clearInterval(intervalId);
               this.logger.log(`🚀 Executing trade for ${opportunity.symbol} at funding time`);
-              if (opportunity.longExchange == 'Binance' && opportunity.shortExchange == 'Bybit') {
-                // this.binanceConnector.placeOrder(
-                //   binanceSetting.symbol,
-                //   'BUY',
-                //   binanceSetting.quantity,
-                // );
-                // await this.sleep(1000);
-                // this.binanceConnector.closePosition(binanceSetting.symbol),
-                this.bybitConnector.placeOrder(
-                  bybitSetting.symbol,
-                  'SELL',
-                  bybitSetting.quantity,
-                );
-                await this.sleep(1000);
-                this.bybitConnector.closePosition(bybitSetting.symbol)
-                sendTelegramMessage(
-                  `🚀 Executed Funding Arbitrage Trade: Hoang Trader\n` +
-                  `Symbol: ${opportunity.symbol}\n` +
-                  `Long on ${opportunity.longExchange}, Short on ${opportunity.shortExchange}\n` +
-                  `Expected Profit: ${(opportunity.expectedProfit * 100).toFixed(2)}%\n` +
-                  `Next Funding Time: ${opportunity.longNextFundingTime}`
-                );
-
-              } else if (opportunity.longExchange == 'Bybit' && opportunity.shortExchange == 'Binance') {
-                this.bybitConnector.placeOrder(
-                  bybitSetting.symbol,
-                  'BUY',
-                  bybitSetting.quantity,
-                );
-                await this.sleep(1000);
-                this.bybitConnector.closePosition(bybitSetting.symbol)
-                // this.binanceConnector.placeOrder(
-                //   binanceSetting.symbol,
-                //   'SELL',
-                //   binanceSetting.quantity,
-                // );
-                // await this.sleep(1000);
-                // this.binanceConnector.closePosition(binanceSetting.symbol),
-                sendTelegramMessage(
-                  `🚀 Executed Funding Arbitrage Trade: Hoang Trader\n` +
-                  `Symbol: ${opportunity.symbol}\n` +
-                  `Long on ${opportunity.longExchange}, Short on ${opportunity.shortExchange}\n` +
-                  `Expected Profit: ${(opportunity.expectedProfit * 100).toFixed(2)}%\n` +
-                  `Next Funding Time: ${opportunity.longNextFundingTime}`
-                )
-              }
+              this.bybitConnector.placeOrder(
+                bybitSetting.symbol,
+                'BUY',
+                bybitSetting.quantity,
+              );
+              await this.sleep(1000);
+              this.bybitConnector.closePosition(bybitSetting.symbol)
 
               return resolve({
                 success: true,
@@ -642,23 +593,30 @@ export class AutoTradeScheduler {
 
   //   return filtered[0];
   // }
-  private findBestEntry(opportunities) {
-    const filtered = opportunities.filter(o => {
-      return o.longNextFundingTime &&
-             o.shortNextFundingTime &&
-             new Date(o.longNextFundingTime).getTime() === new Date(o.shortNextFundingTime).getTime();
-    });
-
-    if (filtered.length === 0) return null;
-
-    filtered.sort((a, b) => {
-      const timeA = new Date(a.longNextFundingTime).getTime();
-      const timeB = new Date(b.longNextFundingTime).getTime();
-
-      return timeA - timeB;
-    });
-
-    return filtered[0];
+  private findBestEntryBybit(opportunities) {
+    if (!opportunities || opportunities.length === 0) return null;
+  
+    const bybitEntries = opportunities.filter(o =>
+      o.longExchange === 'Bybit' &&
+      o.longNextFundingTime &&
+      o.shortNextFundingTime
+    );
+  
+    if (bybitEntries.length === 0) return null;
+  
+    const nearestTime = Math.min(
+      ...bybitEntries.map(o => new Date(o.longNextFundingTime).getTime())
+    );
+  
+    const nearest = bybitEntries.filter(o =>
+      new Date(o.longNextFundingTime).getTime() === nearestTime
+    );
+  
+    const best = nearest.reduce((max, o) => {
+      return !max || o.bybitFundingRate > max.bybitFundingRate ? o : max;
+    }, null);
+  
+    return best;
   }
 
   isFundingNear(opportunity, thresholdSeconds = 15): boolean {
