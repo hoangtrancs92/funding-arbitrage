@@ -128,7 +128,7 @@ export class AutoTradeScheduler {
     return OpportunityFilter.getSimpleStats(bestOpportunities);
   }
 
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  @Cron(CronExpression.EVERY_QUARTER)
   async scanForOpportunities() {
     this.logger.log('🔍 Scanning for funding arbitrage opportunities...');
 

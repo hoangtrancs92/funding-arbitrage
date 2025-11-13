@@ -79,45 +79,22 @@ export class AppController {
     }
   }
 
-  @Post('test/binance/order/')
-  // async testBinanceOrder(@Body() body: {
-  //   symbol: string;
-  //   side: 'BUY' | 'SELL';
-  //   initialMargin: number; // USDT margin amount
-  //   leverage?: number;
-  //   marginMode?: 'isolated' | 'cross';
-  // }) {
-  //   try {
-  //     const orderResult = await this.binanceConnector.placeOrder(
-  //       body.symbol,
-  //       body.side,
-  //       body.initialMargin,
-  //       body.leverage,
-  //       body.marginMode
-  //     );
-  //     return { orderResult };
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       error: error.message
-  //     };
-  //   }
-  // }
+  @Post('test/binance/cancel-order/')
+  async testBinanceCancelOrder(@Body() body: {
+    symbol: string;
+  }) {
+    try {
+      const binnancePosition = await this.binanceConnector.fetchPosition(body.symbol);
 
-  // @Post('test/binance/cancel-order/')
-  // async testBinanceCancelOrder(@Body() body: {
-  //   symbol: string;
-  // }) {
-  //   try {
-  //     const result = await this.binanceConnector.closePosition(body.symbol);
-  //     return { result };
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       error: error.message
-  //     };
-  //   }
-  // }
+      const result = await this.binanceConnector.closePosition(body.symbol, binnancePosition);
+      return { result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 
   @Get('test/binance/position/')
   async testBinanceGetPosition(@Body() body: {
@@ -193,20 +170,21 @@ export class AppController {
   //   }
   // }
 
-  // @Post('test/bybit/cancel-order/')
-  // async testBybitCancelOrder(@Body() body: {
-  //   symbol: string;
-  // }) {
-  //   try {
-  //     const result = await this.bybitConnector.closePosition(body.symbol);
-  //     return { result };
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       error: error.message
-  //     };
-  //   }
-  // }
+  @Post('test/bybit/cancel-order/')
+  async testBybitCancelOrder(@Body() body: {
+    symbol: string;
+  }) {
+    try {
+      const bybitPosition = await this.bybitConnector.fetchPosition(body.symbol);
+      const result = await this.bybitConnector.closePosition(body.symbol, bybitPosition);
+      return { result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 
   // @Post('test/long-binance-short-bybit/')
   // testLongBinanceShortBybit(@Body() body: {

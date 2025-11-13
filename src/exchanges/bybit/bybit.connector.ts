@@ -160,7 +160,8 @@ export class BybitConnector extends ExchangeConnector {
 
   async closePosition(symbol: string, position: any): Promise<boolean> {
     try {
-      const { side, amount } = getCloseOrderParams(position);
+      const { side, amount } = getCloseOrderParams(position[0]);
+      symbol = `${formatPair(symbol)}:USDT`;
       const order = await this.exchange.createOrder(symbol, 'market', side, amount, undefined, {
         reduceOnly: true,
       });
@@ -222,6 +223,7 @@ export class BybitConnector extends ExchangeConnector {
     };
   }
   async fetchPosition(symbol: string): Promise<any> {
+    symbol = `${formatPair(symbol)}:USDT`;
     const positions = await this.exchange.fetchPositions([symbol]);
     return positions;
   }

@@ -153,7 +153,8 @@ export class BinanceConnector extends ExchangeConnector {
   }
 
   async closePosition(symbol: string, position: any): Promise<any> {
-    const { side, amount } = getCloseOrderParams(position);
+    const { side, amount } = getCloseOrderParams(position[0]);
+    console.log(`Closing position on ${this.exchangeName}:`, { symbol, side, amount });
     const order = await this.exchange.createOrder(symbol, 'market', side, amount, undefined, {
       reduceOnly: true,
     });
