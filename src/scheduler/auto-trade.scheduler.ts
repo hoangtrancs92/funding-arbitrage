@@ -408,12 +408,12 @@ export class AutoTradeScheduler {
         'isolated'
       );
 
-      const binanceSetting = await this.binanceConnector.setUpBeforeRuns(
-        opportunity.symbol,
-        balance,
-        5,
-        'isolated'
-      );
+      // const binanceSetting = await this.binanceConnector.setUpBeforeRuns(
+      //   opportunity.symbol,
+      //   balance,
+      //   5,
+      //   'isolated'
+      // );
 
 
       return new Promise((resolve) => {
@@ -432,24 +432,24 @@ export class AutoTradeScheduler {
               return resolve({ success: true, symbol: opportunity.symbol });
             }
 
-            if (remainingSec <= 1) {
+            if (remainingSec <= 2) {
               clearInterval(intervalId);
               this.logger.log(`🚀 Executing trade for ${opportunity.symbol} at funding time`);
               if (opportunity.longExchange == 'Binance' && opportunity.shortExchange == 'Bybit') {
-                this.binanceConnector.placeOrder(
-                  binanceSetting.symbol,
-                  'BUY',
-                  binanceSetting.quantity,
-                );
-                await this.sleep(1000);
-                this.binanceConnector.closePosition(binanceSetting.symbol),
-                // this.bybitConnector.placeOrder(
-                //   bybitSetting.symbol,
-                //   'SELL',
-                //   bybitSetting.quantity,
+                // this.binanceConnector.placeOrder(
+                //   binanceSetting.symbol,
+                //   'BUY',
+                //   binanceSetting.quantity,
                 // );
                 // await this.sleep(1000);
-                // this.bybitConnector.closePosition(bybitSetting.symbol)
+                // this.binanceConnector.closePosition(binanceSetting.symbol),
+                this.bybitConnector.placeOrder(
+                  bybitSetting.symbol,
+                  'SELL',
+                  bybitSetting.quantity,
+                );
+                await this.sleep(1000);
+                this.bybitConnector.closePosition(bybitSetting.symbol)
                 sendTelegramMessage(
                   `🚀 Executed Funding Arbitrage Trade: Hoang Trader\n` +
                   `Symbol: ${opportunity.symbol}\n` +
