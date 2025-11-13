@@ -663,30 +663,20 @@ export class AutoTradeScheduler {
   }
 
   private findBestEntry(opportunities) {
-    if (!opportunities || opportunities.length === 0) return null;
-  
-    const withNearestTime = opportunities.map(o => {
-      const longTime = o.longNextFundingTime ? new Date(o.longNextFundingTime).getTime() : -Infinity;
-      const shortTime = o.shortNextFundingTime ? new Date(o.shortNextFundingTime).getTime() : -Infinity;
-      // Lấy lớn nhất giữa long và short
-      const nearestTime = Math.max(longTime, shortTime);
-      return { ...o, nearestTime };
+    const filtered = opportunities.filter(o => {
+      const sameFundingTime =
+        o.longNextFundingTime &&
+        o.shortNextFundingTime &&
+        new Date(o.longNextFundingTime).getTime() === new Date(o.shortNextFundingTime).getTime();
+      return o.expectedProfit >= 0.001 && sameFundingTime;
     });
-  
-    const filtered = withNearestTime.filter(o => o.expectedProfit >= 0.001);
-  
+
     if (filtered.length === 0) return null;
-  
-    // So sánh bằng if/else (không dùng phép trừ)
+
     filtered.sort((a, b) => {
-      if (a.nearestTime > b.nearestTime) return -1; // a trước nếu thời gian lớn hơn
-      if (a.nearestTime < b.nearestTime) return 1;  // b trước nếu lớn hơn
-      // nếu cùng thời gian -> ưu tiên expectedProfit lớn hơn
-      if (a.expectedProfit > b.expectedProfit) return -1;
-      if (a.expectedProfit < b.expectedProfit) return 1;
-      return 0;
+       return Math.abs(b.longFundingRate) - Math.abs(a.longFundingRate);
     });
-  
+
     return filtered[0];
   }
 
