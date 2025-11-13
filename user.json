@@ -1,0 +1,67 @@
+[
+  {
+    "symbol": "CVCUSDT",
+    "scenarioId": 2,
+    "scenarioName": "Funding lệch biên độ",
+    "longExchange": "Bybit",
+    "shortExchange": "Binance",
+    "longFundingRate": -0.025,
+    "shortFundingRate": -0.01345105,
+    "expectedProfit": 0.01154895,
+    "timestamp": "2025-11-11T13:02:10.383Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T16:00:00.000Z"
+  },
+  {
+    "symbol": "PARTIUSDT",
+    "scenarioId": 2,
+    "scenarioName": "Funding lệch biên độ",
+    "longExchange": "Bybit",
+    "shortExchange": "Binance",
+    "longFundingRate": -0.00858236,
+    "shortFundingRate": -0.00278272,
+    "expectedProfit": 0.005799640000000001,
+    "timestamp": "2025-11-11T13:02:10.385Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T16:00:00.000Z"
+  },
+  {
+    "symbol": "KERNELUSDT",
+    "scenarioId": 2,
+    "scenarioName": "Funding lệch biên độ",
+    "longExchange": "Bybit",
+    "shortExchange": "Binance",
+    "longFundingRate": -0.00566555,
+    "shortFundingRate": -0.00294596,
+    "expectedProfit": 0.00271959,
+    "timestamp": "2025-11-11T13:02:10.378Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T16:00:00.000Z"
+  },
+  {
+    "symbol": "MTLUSDT",
+    "scenarioId": 2,
+    "scenarioName": "Funding lệch biên độ",
+    "longExchange": "Binance",
+    "shortExchange": "Bybit",
+    "longFundingRate": -0.00358547,
+    "shortFundingRate": -0.00089511,
+    "expectedProfit": 0.00269036,
+    "timestamp": "2025-11-11T13:02:10.379Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T16:00:00.000Z"
+  },
+  {
+    "symbol": "TREEUSDT",
+    "scenarioId": 1,
+    "scenarioName": "Funding trái dấu",
+    "longExchange": "Binance",
+    "shortExchange": "Bybit",
+    "longFundingRate": -0.00202357,
+    "shortFundingRate": 0.0000125,
+    "expectedProfit": 0.00203607,
+    "timestamp": "2025-11-11T13:02:10.368Z",
+    "longNextFundingTime": "2025-11-11T16:00:00.000Z",
+    "shortNextFundingTime": "2025-11-11T14:00:00.000Z"
+  }
+]
