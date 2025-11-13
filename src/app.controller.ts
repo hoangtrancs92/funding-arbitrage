@@ -80,29 +80,29 @@ export class AppController {
   }
 
   @Post('test/binance/order/')
-  async testBinanceOrder(@Body() body: {
-    symbol: string;
-    side: 'BUY' | 'SELL';
-    initialMargin: number; // USDT margin amount
-    leverage?: number;
-    marginMode?: 'isolated' | 'cross';
-  }) {
-    try {
-      const orderResult = await this.binanceConnector.placeOrder(
-        body.symbol,
-        body.side,
-        body.initialMargin,
-        body.leverage,
-        body.marginMode
-      );
-      return { orderResult };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
+  // async testBinanceOrder(@Body() body: {
+  //   symbol: string;
+  //   side: 'BUY' | 'SELL';
+  //   initialMargin: number; // USDT margin amount
+  //   leverage?: number;
+  //   marginMode?: 'isolated' | 'cross';
+  // }) {
+  //   try {
+  //     const orderResult = await this.binanceConnector.placeOrder(
+  //       body.symbol,
+  //       body.side,
+  //       body.initialMargin,
+  //       body.leverage,
+  //       body.marginMode
+  //     );
+  //     return { orderResult };
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       error: error.message
+  //     };
+  //   }
+  // }
 
   @Post('test/binance/cancel-order/')
   async testBinanceCancelOrder(@Body() body: {
@@ -168,30 +168,30 @@ export class AppController {
     }
   }
 
-  @Post('test/bybit/order/')
-  async testBybitOrder(@Body() body: {
-    symbol: string;
-    side: 'BUY' | 'SELL';
-    initialMargin: number; // USDT margin amount
-    leverage?: number;
-    marginMode?: 'isolated' | 'cross';
-  }) {
-    try {
-      const orderResult = await this.bybitConnector.placeOrder(
-        body.symbol,
-        body.side,
-        body.initialMargin,
-        body.leverage,
-        body.marginMode
-      );
-      return { orderResult };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
+  // @Post('test/bybit/order/')
+  // async testBybitOrder(@Body() body: {
+  //   symbol: string;
+  //   side: 'BUY' | 'SELL';
+  //   initialMargin: number; // USDT margin amount
+  //   leverage?: number;
+  //   marginMode?: 'isolated' | 'cross';
+  // }) {
+  //   try {
+  //     const orderResult = await this.bybitConnector.placeOrder(
+  //       body.symbol,
+  //       body.side,
+  //       body.initialMargin,
+  //       body.leverage,
+  //       body.marginMode
+  //     );
+  //     return { orderResult };
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       error: error.message
+  //     };
+  //   }
+  // }
 
   @Post('test/bybit/cancel-order/')
   async testBybitCancelOrder(@Body() body: {
@@ -208,77 +208,77 @@ export class AppController {
     }
   }
 
-  @Post('test/long-binance-short-bybit/')
-  testLongBinanceShortBybit(@Body() body: {
-    symbol: string;
-    initialMargin: number;
-    leverage: number; // USDT margin amount
-  }) {
-    try {
-      // Step 1: Open a long position on Binance
-      const binanceOrder = this.binanceConnector.placeOrder(
-        body.symbol,
-        'BUY',
-        body.initialMargin,
-        body.leverage
-      );
+  // @Post('test/long-binance-short-bybit/')
+  // testLongBinanceShortBybit(@Body() body: {
+  //   symbol: string;
+  //   initialMargin: number;
+  //   leverage: number; // USDT margin amount
+  // }) {
+  //   try {
+  //     // Step 1: Open a long position on Binance
+  //     const binanceOrder = this.binanceConnector.placeOrder(
+  //       body.symbol,
+  //       'BUY',
+  //       body.initialMargin,
+  //       body.leverage
+  //     );
 
-      // Step 2: Open a short position on Bybit
-      const bybitOrder = this.bybitConnector.placeOrder(
-        body.symbol,
-        'SELL',
-        body.initialMargin,
-        body.leverage
-      );
+  //     // Step 2: Open a short position on Bybit
+  //     const bybitOrder = this.bybitConnector.placeOrder(
+  //       body.symbol,
+  //       'SELL',
+  //       body.initialMargin,
+  //       body.leverage
+  //     );
 
-      return {
-        success: true,
-        binanceOrder,
-        bybitOrder
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
+  //     return {
+  //       success: true,
+  //       binanceOrder,
+  //       bybitOrder
+  //     };
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       error: error.message
+  //     };
+  //   }
+  // }
 
-  @Post('test/long-bybit-short-binance/')
-   testLongBybitShortBinance(@Body() body: {
-    symbol: string;
-    initialMargin: number;
-    leverage: number;
-  }) {
-    try {
-      // Step 1: Open a long position on Bybit
-      const bybitOrder =  this.bybitConnector.placeOrder(
-        body.symbol,
-        'BUY',
-        body.initialMargin,
-        body.leverage
-      );
+  // @Post('test/long-bybit-short-binance/')
+  //  testLongBybitShortBinance(@Body() body: {
+  //   symbol: string;
+  //   initialMargin: number;
+  //   leverage: number;
+  // }) {
+  //   try {
+  //     // Step 1: Open a long position on Bybit
+  //     const bybitOrder =  this.bybitConnector.placeOrder(
+  //       body.symbol,
+  //       'BUY',
+  //       body.initialMargin,
+  //       body.leverage
+  //     );
 
-      // Step 2: Open a short position on Binance
-      const binanceOrder =  this.binanceConnector.placeOrder(
-        body.symbol,
-        'SELL',
-        body.initialMargin,
-        body.leverage
-      );
+  //     // Step 2: Open a short position on Binance
+  //     const binanceOrder =  this.binanceConnector.placeOrder(
+  //       body.symbol,
+  //       'SELL',
+  //       body.initialMargin,
+  //       body.leverage
+  //     );
 
-      return {
-        success: true,
-        bybitOrder,
-        binanceOrder
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message
-      };
-    }
-  }
+  //     return {
+  //       success: true,
+  //       bybitOrder,
+  //       binanceOrder
+  //     };
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       error: error.message
+  //     };
+  //   }
+  // }
 
   @Post('test/cancel-2-way-positions/')
    cancelTwoWayPositions(@Body() body: {

@@ -152,40 +152,13 @@ export class BybitConnector extends ExchangeConnector {
     }
   }
 
-  async placeOrder(
-    symbol: string,
-    side: 'BUY' | 'SELL',
-    initialMargin: number,
-    leverage?: number,
-    marginMode: 'cross' | 'isolated' = 'isolated'
+  async placeOrder(symbol: string, side: 'BUY' | 'SELL', quantity: number
   ) {
-    const exchange = new bybit({
-      apiKey: this.apiKey,
-      secret: this.secretKey,
-      options: {
-        defaultType: 'future',
-      },
-    });
-    symbol = `${formatPair(symbol)}:USDT`;
-    await exchange.loadTimeDifference();
-
-    const currentLeverage = await exchange.fetchLeverage(symbol);
-    if (leverage != currentLeverage.info.info.leverage) {
-      await exchange.setLeverage(leverage, symbol);
-    }
-
-    await exchange.setMarginMode(marginMode, symbol);
-    const ticker = await exchange.fetchTicker(symbol);
-    const quantity = calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
-    const result = await exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
-
+    const result = await this.exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
     return result;
   }
 
   async closePosition(symbol: string): Promise<boolean> {
-    // Đồng bộ server time trước khi thực hiện
-    await this.exchange.loadTimeDifference();
-    symbol = `${formatPair(symbol)}:USDT`;
     const position = (await this.exchange.fetchPositions([symbol]))[0];
     if (!position) {
       throw new Error(`No open position found for symbol: ${symbol}`);
@@ -223,5 +196,28 @@ export class BybitConnector extends ExchangeConnector {
     symbol = `${formatPair(symbol)}:USDT`;
     const history = await this.exchange.fetchFundingHistory(symbol, undefined, limit);
     return history;
+  }
+  async setUpBeforeRuns(
+    symbol: string,
+    initialMargin: number,
+    leverage?: number,
+    marginMode: 'cross' | 'isolated' = 'isolated'
+  ) {
+    symbol = `${formatPair(symbol)}:USDT`;
+    await this.exchange.loadTimeDifference();
+
+    const currentLeverage = await this.exchange.fetchLeverage(symbol);
+    if (leverage != currentLeverage.info.info.leverage) {
+      await this.exchange.setLeverage(leverage, symbol);
+    }
+
+    await this.exchange.setMarginMode(marginMode, symbol);
+    const ticker = await this.exchange.fetchTicker(symbol);
+    const quantity = calculateCoinAmountFromMargin(initialMargin, ticker.last, leverage || 1);
+
+    return {
+      symbol,
+      quantity
+    };
   }
 }

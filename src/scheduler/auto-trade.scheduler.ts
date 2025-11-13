@@ -161,7 +161,7 @@ export class AutoTradeScheduler {
       }
 
       // Lọc opportunities (loại bỏ duplicate, chọn tốt nhất theo profit)
-      const bestOpportunities = OpportunityFilter.getTopOpportunities(this.rawOpportunities, 10);
+      const bestOpportunities = OpportunityFilter.getTopOpportunities(this.rawOpportunities, 50);
       // Broadcast optimized opportunities
       this.tradingGateway?.broadcastOpportunitiesUpdate(Array.from(fundingRates.keys()));
       const balance = await this.getBalance();
@@ -181,9 +181,6 @@ export class AutoTradeScheduler {
 
 
       this.isScanning = false;
-
-      // Quản lý các position đang mở
-      await this.manageActivePositions();
 
       // Broadcast bot status và positions update
       this.broadcastBotStatus();
@@ -365,22 +362,6 @@ export class AutoTradeScheduler {
     // Scenario 5: Cả hai sàn funding cao cùng chiều
   }
 
-  private async checkTimeSensitiveScenarios() {
-    // Kiểm tra các scenario nhạy cảm về thời gian
-    this.logger.log('Checking time-sensitive scenarios before funding...');
-  }
-
-  private async closeExpiredPositions() {
-    // Đóng các position đã hết hạn
-    const expiredPositions = this.activePositions.filter(p =>
-      p.status === 'ACTIVE' && this.shouldClosePosition(p)
-    );
-
-    for (const position of expiredPositions) {
-      await this.closePosition(position);
-    }
-  }
-
   /**
    * Execute trades cho top opportunities (chỉ lấy tốt nhất, tránh duplicate)
    */
@@ -420,10 +401,24 @@ export class AutoTradeScheduler {
         return { success: false, symbol: opportunity.symbol };
       }
 
+      const bybitSetting = await this.bybitConnector.setUpBeforeRuns(
+        opportunity.symbol,
+        balance,
+        5,
+        'isolated'
+      );
+
+      const binanceSetting = await this.binanceConnector.setUpBeforeRuns(
+        opportunity.symbol,
+        balance,
+        5,
+        'isolated'
+      );
+
 
       return new Promise((resolve) => {
         const startWatcher = () => {
-          if (!this.isFundingNear(opportunity, 20)) {
+          if (!this.isFundingNear(opportunity, 30)) {
             return resolve({ success: false, symbol: opportunity.symbol });
           }
 
@@ -437,13 +432,24 @@ export class AutoTradeScheduler {
               return resolve({ success: true, symbol: opportunity.symbol });
             }
 
-            if (remainingSec <= 4) {
+            if (remainingSec <= 1) {
               clearInterval(intervalId);
               this.logger.log(`🚀 Executing trade for ${opportunity.symbol} at funding time`);
               if (opportunity.longExchange == 'Binance' && opportunity.shortExchange == 'Bybit') {
-                this.binanceConnector.placeOrder(opportunity.symbol, 'BUY', balance, 5, 'isolated');
+                this.binanceConnector.placeOrder(
+                  binanceSetting.symbol,
+                  'BUY',
+                  binanceSetting.quantity,
+                );
                 await this.sleep(1000);
-                this.bybitConnector.placeOrder(opportunity.symbol, 'SELL', balance, 5, 'isolated');
+                this.binanceConnector.closePosition(binanceSetting.symbol),
+                // this.bybitConnector.placeOrder(
+                //   bybitSetting.symbol,
+                //   'SELL',
+                //   bybitSetting.quantity,
+                // );
+                // await this.sleep(1000);
+                // this.bybitConnector.closePosition(bybitSetting.symbol)
                 sendTelegramMessage(
                   `🚀 Executed Funding Arbitrage Trade: Hoang Trader\n` +
                   `Symbol: ${opportunity.symbol}\n` +
@@ -453,10 +459,20 @@ export class AutoTradeScheduler {
                 );
 
               } else if (opportunity.longExchange == 'Bybit' && opportunity.shortExchange == 'Binance') {
-                this.bybitConnector.placeOrder(opportunity.symbol, 'BUY', balance, 5, 'isolated');
+                this.bybitConnector.placeOrder(
+                  bybitSetting.symbol,
+                  'BUY',
+                  bybitSetting.quantity,
+                );
                 await this.sleep(1000);
-                this.binanceConnector.placeOrder(opportunity.symbol, 'SELL', balance, 5, 'isolated');
-
+                this.bybitConnector.closePosition(bybitSetting.symbol)
+                // this.binanceConnector.placeOrder(
+                //   binanceSetting.symbol,
+                //   'SELL',
+                //   binanceSetting.quantity,
+                // );
+                // await this.sleep(1000);
+                // this.binanceConnector.closePosition(binanceSetting.symbol),
                 sendTelegramMessage(
                   `🚀 Executed Funding Arbitrage Trade: Hoang Trader\n` +
                   `Symbol: ${opportunity.symbol}\n` +
@@ -482,59 +498,6 @@ export class AutoTradeScheduler {
       this.logger.error(`❌ Failed to execute trade for ${opportunity.symbol}:`, error);
       return { success: false, symbol: opportunity.symbol };
     }
-  }
-
-  private async manageActivePositions() {
-    // Quản lý các position đang mở
-    for (const position of this.activePositions) {
-      if (position.status === 'ACTIVE') {
-        // Kiểm tra điều kiện đóng position
-        if (this.shouldClosePosition(position)) {
-          await this.closePosition(position);
-        }
-      }
-    }
-  }
-
-  private async closePosition(position: TradeExecution) {
-    try {
-      this.logger.log(`🔄 Closing position: ${position.symbol} (${position.scenarioId})`);
-
-      // TODO: Implement actual order closure
-      // await this.closeOrder(position.longExchange, position.longPosition?.orderId);
-      // await this.closeOrder(position.shortExchange, position.shortPosition?.orderId);
-
-      position.status = 'CLOSED';
-
-      // Cập nhật P&L
-      // const realizedPnL = await this.calculateRealizedPnL(position);
-      // this.dailyPnL += realizedPnL;
-
-      this.logger.log(`✅ Position closed: ${position.symbol}`);
-
-    } catch (error) {
-      this.logger.error(`❌ Failed to close position: ${position.symbol}`, error);
-      position.status = 'FAILED';
-    }
-  }
-
-  private shouldClosePosition(position: TradeExecution): boolean {
-    // Logic để quyết định có nên đóng position không
-    const now = new Date();
-    const executionTime = new Date(position.executedAt);
-    const timeDiff = now.getTime() - executionTime.getTime();
-
-    // Đóng sau 8 giờ (1 funding period)
-    return timeDiff > 8 * 60 * 60 * 1000;
-  }
-
-  private calculatePositionSize(scenario: FundingArbitrageScenario, expectedProfit: number): number {
-    // Tính toán kích thước position dựa trên risk và expected profit
-    const baseSize = 1000; // USD
-    const riskMultiplier = scenario.riskLevel === 'LOW' ? 1.0 : scenario.riskLevel === 'MEDIUM' ? 0.7 : 0.5;
-    const profitMultiplier = Math.min(expectedProfit / 0.001, 3); // Scale với profit
-
-    return baseSize * riskMultiplier * profitMultiplier;
   }
 
   private findCommonSymbols(rates1: any[], rates2: any[]): string[] {
@@ -662,19 +625,37 @@ export class AutoTradeScheduler {
     }
   }
 
+  // private findBestEntry(opportunities) {
+  //   const filtered = opportunities.filter(o => {
+  //     const sameFundingTime =
+  //       o.longNextFundingTime &&
+  //       o.shortNextFundingTime &&
+  //       new Date(o.longNextFundingTime).getTime() === new Date(o.shortNextFundingTime).getTime();
+  //     return o.expectedProfit >= 0.000 && sameFundingTime;
+  //   });
+
+  //   if (filtered.length === 0) return null;
+
+  //   filtered.sort((a, b) => {
+  //      return Math.abs(b.longFundingRate) - Math.abs(a.longFundingRate);
+  //   });
+
+  //   return filtered[0];
+  // }
   private findBestEntry(opportunities) {
     const filtered = opportunities.filter(o => {
-      const sameFundingTime =
-        o.longNextFundingTime &&
-        o.shortNextFundingTime &&
-        new Date(o.longNextFundingTime).getTime() === new Date(o.shortNextFundingTime).getTime();
-      return o.expectedProfit >= 0.001 && sameFundingTime;
+      return o.longNextFundingTime &&
+             o.shortNextFundingTime &&
+             new Date(o.longNextFundingTime).getTime() === new Date(o.shortNextFundingTime).getTime();
     });
 
     if (filtered.length === 0) return null;
 
     filtered.sort((a, b) => {
-       return Math.abs(b.longFundingRate) - Math.abs(a.longFundingRate);
+      const timeA = new Date(a.longNextFundingTime).getTime();
+      const timeB = new Date(b.longNextFundingTime).getTime();
+
+      return timeA - timeB;
     });
 
     return filtered[0];

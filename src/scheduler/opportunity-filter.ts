@@ -66,7 +66,7 @@ export class OpportunityFilter {
   /**
    * Lấy top N opportunities
    */
-  static getTopOpportunities(opportunities: any[], limit: number = 10): SimpleOpportunity[] {
+  static getTopOpportunities(opportunities: any[], limit: number = 50): SimpleOpportunity[] {
     const filtered = this.filterBestBySymbol(opportunities);
     return filtered.slice(0, limit);
   }
