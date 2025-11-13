@@ -158,18 +158,19 @@ export class BybitConnector extends ExchangeConnector {
     return result;
   }
 
-  async closePosition(symbol: string): Promise<boolean> {
-    const position = (await this.exchange.fetchPositions([symbol]))[0];
-    if (!position) {
-      throw new Error(`No open position found for symbol: ${symbol}`);
+  async closePosition(symbol: string, position: any): Promise<boolean> {
+    try {
+      const { side, amount } = getCloseOrderParams(position);
+      const order = await this.exchange.createOrder(symbol, 'market', side, amount, undefined, {
+        reduceOnly: true,
+      });
+      return order;
+
+    } catch (error) {
+      this.logger.error(`Failed to close position for ${symbol}:`, error.message);
+      return false;
     }
 
-    const { side, amount } = getCloseOrderParams(position);
-    const order = await this.exchange.createOrder(symbol, 'market', side, amount, undefined, {
-      reduceOnly: true,
-    });
-
-    return order;
   }
 
   async getPosition(symbol: string): Promise<PositionInfo[]> {
@@ -219,5 +220,9 @@ export class BybitConnector extends ExchangeConnector {
       symbol,
       quantity
     };
+  }
+  async fetchPosition(symbol: string): Promise<any> {
+    const positions = await this.exchange.fetchPositions([symbol]);
+    return positions;
   }
 }

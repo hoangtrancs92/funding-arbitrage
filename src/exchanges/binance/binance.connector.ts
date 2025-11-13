@@ -152,12 +152,7 @@ export class BinanceConnector extends ExchangeConnector {
     }));
   }
 
-  async closePosition(symbol: string): Promise<any> {
-    const position = (await this.exchange.fetchPositions([symbol]))[0];
-    if (!position) {
-      throw new Error(`No open position found for symbol: ${symbol}`);
-    }
-
+  async closePosition(symbol: string, position: any): Promise<any> {
     const { side, amount } = getCloseOrderParams(position);
     const order = await this.exchange.createOrder(symbol, 'market', side, amount, undefined, {
       reduceOnly: true,
@@ -189,5 +184,10 @@ export class BinanceConnector extends ExchangeConnector {
       symbol,
       quantity,
     }
+  }
+
+  async fetchPosition(symbol: string): Promise<any> {
+    const positions = await this.exchange.fetchPositions([symbol]);
+    return positions;
   }
 }
