@@ -127,6 +127,27 @@ export class AppController {
     }
   }
 
+  @Post('test/binance/order/')
+  async testBinanceOrder(@Body() body: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    quantity: number;
+  }) {
+    try {
+      const orderResult = await this.binanceConnector.placeOrder(
+        body.symbol,
+        body.side,
+        body.quantity,
+      );
+      return { orderResult };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
   // === BYBIT TEST ENDPOINTS ===
 
   @Get('test/bybit/balance')
@@ -145,30 +166,26 @@ export class AppController {
     }
   }
 
-  // @Post('test/bybit/order/')
-  // async testBybitOrder(@Body() body: {
-  //   symbol: string;
-  //   side: 'BUY' | 'SELL';
-  //   initialMargin: number; // USDT margin amount
-  //   leverage?: number;
-  //   marginMode?: 'isolated' | 'cross';
-  // }) {
-  //   try {
-  //     const orderResult = await this.bybitConnector.placeOrder(
-  //       body.symbol,
-  //       body.side,
-  //       body.initialMargin,
-  //       body.leverage,
-  //       body.marginMode
-  //     );
-  //     return { orderResult };
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       error: error.message
-  //     };
-  //   }
-  // }
+  @Post('test/bybit/order/')
+  async testBybitOrder(@Body() body: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    quantity: number;
+  }) {
+    try {
+      const orderResult = await this.bybitConnector.placeOrder(
+        body.symbol,
+        body.side,
+        body.quantity,
+      );
+      return { orderResult };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 
   @Post('test/bybit/cancel-order/')
   async testBybitCancelOrder(@Body() body: {
@@ -282,15 +299,53 @@ export class AppController {
   //   }
   // }
 
-  @Get('test/mexc/getFuturesContracts')
-  async testMexcGetFuturesContracts() {
+  @Get('test/bybit/closed-order')
+  async testBybitGetClosedOrder(@Body() body: {
+    orderId: string;
+    symbol: string;
+  }) {
     try {
-      const markets = await this.mexcConnector.getFuturesContracts();
+      const closedOrders = await this.bybitConnector.fecthCloseOrder(body.orderId, body.symbol);
+      return { closedOrders };
+    } catch (error) {
       return {
-        success: true,
-        data: markets,
-        message: `Retrieved ${markets.length} futures contracts from MEXC`
+        success: false,
+        error: error.message
       };
+    }
+  }
+
+  @Get('test/bybit/get-position/')
+  async testBybitGetPosition(@Body() body: {
+    symbol: string;
+  }) {
+    try {
+      const position = await this.bybitConnector.getPosition(body.symbol);
+      return { position };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  @Post('test/binance/tp-sl-order/')
+  async testBinanceTpSlOrder(@Body() body: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    quantity: number;
+    tpPrice: number;
+    slPrice: number;
+  }) {
+    try {
+      const orderResult = await this.binanceConnector.TPandSLOrder(
+        body.symbol,
+        body.quantity,
+        body.tpPrice,
+        body.slPrice,
+      );
+      return { orderResult };
     } catch (error) {
       return {
         success: false,

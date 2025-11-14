@@ -152,11 +152,86 @@ export class BybitConnector extends ExchangeConnector {
     }
   }
 
-  async placeOrder(symbol: string, side: 'BUY' | 'SELL', quantity: number
-  ) {
-    const result = await this.exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
-    return result;
+  async placeOrder(symbol: string, side: 'BUY' | 'SELL', quantity: number) {
+    const entrySide = side.toLowerCase();
+    const exitSide = side === 'BUY' ? 'sell' : 'buy';
+    const absQty = Math.abs(quantity);
+  
+    // ---- 1. ENTRY ORDER ----
+    const entryOrder = await this.exchange.createOrder(
+      symbol,
+      'market',
+      entrySide,
+      absQty
+    );
+  
+    // ---- 2. TRY TO GET FILLED PRICE ----
+    let filled;
+    try {
+      filled = await this.exchange.fetchOrder(entryOrder.id, symbol, {
+        acknowledged: true
+      });
+    } catch {
+      const closed = await this.exchange.fetchClosedOrders(symbol);
+      filled = closed.find(o => o.id === entryOrder.id);
+    }
+  
+    const entryPrice = filled?.average;
+    if (!entryPrice) throw new Error('Cannot determine filled price');
+  
+    // ---- 3. CALCULATE TP & SL ----
+    const tpPercent = 0.015;
+    const slPercent = 0.015;
+  
+    const takeProfitPrice =
+      side === 'BUY' ? entryPrice * (1 + tpPercent) : entryPrice * (1 - tpPercent);
+  
+    const stopLossPrice =
+      side === 'BUY' ? entryPrice * (1 - slPercent) : entryPrice * (1 + slPercent);
+  
+    // ---- 4. TRIGGER DIRECTIONS ----
+    const tpTrigger = side === 'BUY' ? 'ascending' : 'descending';
+    const slTrigger = side === 'BUY' ? 'descending' : 'ascending';
+  
+    // ---- 5. TP ORDER ----
+    const tpOrder = await this.exchange.createOrder(
+      symbol,
+      'market',          // <-- must be "market" or "limit"
+      exitSide,
+      absQty,
+      undefined,
+      {
+        reduceOnly: true,
+        triggerPrice: takeProfitPrice,
+        triggerDirection: tpTrigger,
+      }
+    );
+  
+    // ---- 6. SL ORDER ----
+    const slOrder = await this.exchange.createOrder(
+      symbol,
+      'market',
+      exitSide,
+      absQty,
+      undefined,
+      {
+        reduceOnly: true,
+        triggerPrice: stopLossPrice,
+        triggerDirection: slTrigger,
+      }
+    );
+  
+    return {
+      entryOrder,
+      entryPrice,
+      takeProfitPrice,
+      stopLossPrice,
+      tpOrder,
+      slOrder
+    };
   }
+  
+  
 
   async closePosition(symbol: string, position: any): Promise<boolean> {
     try {
@@ -226,5 +301,67 @@ export class BybitConnector extends ExchangeConnector {
     symbol = `${formatPair(symbol)}:USDT`;
     const positions = await this.exchange.fetchPositions([symbol]);
     return positions;
+  }
+
+  async fecthCloseOrder(orderId: string, symbol: string): Promise<any> {
+    const closedOrders = await this.exchange.fetchOrderTrades(orderId, symbol);
+    return closedOrders;
+  }
+
+  async  monitorAndCloseFull(
+    symbol: string,
+    sl: number,  // stop-loss % (5 = -5%)
+    tp: number   // take-profit % (5 = +5%)
+  ) {
+    symbol = `${formatPair(symbol)}:USDT`;
+    while (true) {
+      const orderbook = await this.exchange.fetchOrderBook(symbol);
+      const askPrice = orderbook.asks[0][0];
+      const bidPrice = orderbook.bids[0][0];
+  
+      // lấy position
+      const positions = await this.exchange.fetchPositions([symbol]);
+  
+      if (!positions.length) {
+        console.log("Không còn position → stop.");
+        break;
+      }
+  
+      const pos = positions[0];
+  
+      const roe = pos.info.unrealisedRoePcnt;  // ví dụ 0.012 = 1.2%
+      const roePercent = roe * 100;
+      const positionSize = Number(pos.contracts ?? pos.info.size ?? pos.size);
+  
+      if (!positionSize || positionSize === 0) {
+        console.log("Pos size = 0 → exit.");
+        break;
+      }
+  
+      const absQty = Math.abs(positionSize);
+  
+      console.log(`ROE: ${roePercent}%, Size: ${absQty}`);
+  
+      // determine side to close
+      const isLong = positionSize > 0;
+      const closeSide = isLong ? "sell" : "buy";
+      const closePrice = isLong ? bidPrice : askPrice;
+  
+      // ---- SL ----
+      if (roePercent <= -sl) {
+        console.log("SL HIT → closing FULL position...");
+        await this.exchange.createOrder(symbol, "limit", closeSide, absQty, closePrice);
+        break;
+      }
+  
+      // ---- TP ----
+      if (roePercent >= tp) {
+        console.log("TP HIT → closing FULL position...");
+        await this.exchange.createOrder(symbol, "limit", closeSide, absQty, closePrice);
+        break;
+      }
+  
+      await new Promise(r => setTimeout(r, 1000));
+    }
   }
 }

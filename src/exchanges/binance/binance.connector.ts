@@ -128,14 +128,76 @@ export class BinanceConnector extends ExchangeConnector {
   }
 
   async placeOrder(
-    symbol: string, side: 'BUY' | 'SELL', quantity: number
+    symbol: string,
+    side: 'BUY' | 'SELL',
+    quantity: number
   ) {
-
-
-    const result = await this.exchange.createOrder(symbol, 'market', side.toLowerCase(), quantity);
-    // Cần thêm await xử lý createOrder tạo TP/SL nếu cần. 
-
-    return result;
+    const entrySide = side.toLowerCase();                // buy | sell
+    const oppositeSide = side === 'BUY' ? 'sell' : 'buy';
+    const absQty = Math.abs(quantity);
+  
+    // ------- 1. ENTRY MARKET -------
+    const entryOrder = await this.exchange.createOrder(
+      symbol,
+      'market',
+      entrySide,
+      absQty
+    );
+  
+    // Lấy giá fill
+    const filled = await this.exchange.fetchOrder(entryOrder.id, symbol);
+    const entryPrice = filled.average;
+    if (!entryPrice) throw new Error('Cannot determine filled price');
+  
+    // ------- 2. TÍNH TP & SL (mặc định 2%) -------
+    const tpPercent = 0.014;
+    const slPercent = 0.014;
+  
+    const takeProfitPrice =
+      side === 'BUY'
+        ? entryPrice * (1 + tpPercent)
+        : entryPrice * (1 - tpPercent);
+  
+    const stopLossPrice =
+      side === 'BUY'
+        ? entryPrice * (1 - slPercent)
+        : entryPrice * (1 + slPercent);
+  
+    // ------- 3. TẠO TP -------
+    const tpOrder = await this.exchange.createOrder(
+      symbol,
+      'TAKE_PROFIT_MARKET',
+      oppositeSide,
+      absQty,
+      undefined,
+      {
+        stopPrice: takeProfitPrice,
+        reduceOnly: true,
+      }
+    );
+  
+    // ------- 4. TẠO SL -------
+    const slOrder = await this.exchange.createOrder(
+      symbol,
+      'STOP_MARKET',
+      oppositeSide,
+      absQty,
+      undefined,
+      {
+        stopPrice: stopLossPrice,
+        reduceOnly: true,
+      }
+    );
+    return slOrder;
+  
+    return {
+      entryOrder,
+      entryPrice,
+      takeProfitPrice,
+      stopLossPrice,
+      tpOrder,
+      slOrder
+    };
   }
 
   async getPosition(symbol:string): Promise<PositionInfo[]> {
@@ -190,5 +252,19 @@ export class BinanceConnector extends ExchangeConnector {
   async fetchPosition(symbol: string): Promise<any> {
     const positions = await this.exchange.fetchPositions([symbol]);
     return positions;
+  }
+
+  async TPandSLOrder(symbol: string, quantity: number, takeProfitPrice?: number, stopLossPrice?: number): Promise<any> {
+    const tpOrder = await this.exchange.createOrder(
+      symbol,
+      'TAKE_PROFIT_MARKET',
+      'BUY',
+      quantity,
+      undefined,
+      {
+        stopPrice: takeProfitPrice,
+        reduceOnly: true,
+      }
+    );
   }
 }
